@@ -11,6 +11,7 @@ The default frontend page remains the inspected Vite starter; it is not an appli
 | POST /api/media | Raw File bytes; Content-Type; URI-encoded X-Filename; X-Visibility private/public | 201 new or 200 duplicate; {media,duplicate} |
 | GET /api/media | None | {media:[]} |
 | GET /api/media/:id | None | {media} |
+| POST /api/media/:id/process | None (or {}) | {media}; explicit retry/reprocessing of the stored original |
 | GET /api/media/:id/file | None | Original image bytes |
 | GET /api/media/:id/thumbnail | None | JPEG thumbnail, or 404 |
 | POST /api/search | {"tags":{"cat":1,"ginger":1}} | {media:[]} using logical AND and minimum counts |
@@ -22,7 +23,7 @@ The default frontend page remains the inspected Vite starter; it is not an appli
 JSON requests must use Content-Type: application/json. Maximum JSON body: 64 KiB.
 Images: JPEG/PNG/WebP, 10 MiB. Client sends File directly; do not wrap in multipart FormData.
 No progress percentage is supplied by fetch; show an indeterminate uploading state until it settles.
-Manual tags count as one occurrence. Inferred species counts will come from a real model, which is not connected.
+Manual tags count as one occurrence. Real YOLO animal counts populate species after successful processing.
 Removing a detected tag currently removes that species entry; adding a tag manually records one occurrence.
 Deletion/tag edits validate every referenced record before modifying a batch (maximum 100 unique inputs).
 Tags normalize case and whitespace (maximum 32 tags, 80 characters each).
@@ -34,7 +35,7 @@ When cleanupPending is true, records are deleted and staged byte cleanup will fi
 
 ## Teammate implementation boundary
 
-Use mediaApi.list/upload/search/lostPet/fromThumbnail/editTags/delete for feature pages.
+Use mediaApi.list/upload/process/search/lostPet/fromThumbnail/editTags/delete for feature pages.
 Build independent UploadForm, MediaGallery/Preview, SearchForm and BulkActions components.
 Catch ApiError, show loading/empty/error states, refresh results after mutations, and clear selection after deletion.
 Use thumbnailUrl ?? originalUrl for image previews. Display processingStatus honestly: pending is not a detected animal result.
@@ -43,7 +44,24 @@ No browser UI workflow has been verified by the agent. Typed client workflows ar
 
 ## Remaining integration work
 
-Approved wildlife-capable YOLO/MegaDetector/Rekognition model; image-based temporary query; video frames every 10 seconds;
+Image-based temporary query; video frames every 10 seconds;
 Cognito and ownership enforcement; S3 upload events; serverless processors and database on a secondary cloud;
 Lex intents/fulfillment and clickable results; filtered notifications; reports and mandatory demo.
 Existing A1 weights classify only empty/occupied parking spots and cannot supply wildlife tags.
+
+## Detection processing contract
+
+Local upload waits for thumbnail generation, inference and indexing. A stored upload can return 201 with
+`processingStatus:failed`; 201 confirms storage, so callers must inspect processingStatus.
+Duplicate upload returns 200 and the existing status without processing. POST process returns 200 with
+either complete or failed metadata; missing IDs return 404 and other methods 405. Fix configuration then retry.
+The typed client exposes process(id). No frontend pages were changed.
+
+Complete metadata includes `species:{cat:2}` (or `{}` for no animals) and
+`detectionModel:{identity,version,weightsSha256,confidence}`. Failure includes a sanitized processingError.
+Reprocessing clears old inferred counts/model identity and keeps manualTags. Complete is persisted only after
+inference succeeds. Pending can mean interrupted processing; explicit retry is safe. Processing and other
+mutations are serialized in this local server. Worker timeout is 120 seconds.
+
+Supported animal labels: bird, cat, dog, horse, sheep, cow, elephant, bear, zebra, giraffe.
+No fox, cane-toad, breed or colour inference. See [DETECTION.md](./DETECTION.md) for setup, limits and real test evidence.

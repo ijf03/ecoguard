@@ -1,6 +1,6 @@
 # Aussie EcoGuard - Group 80
 
-Local-first FIT3184 Assignment 2 implementation. Cloud deployment, Cognito, wildlife ML, Lex, notifications and video are not complete.
+Local-first FIT3184 Assignment 2 implementation with local YOLO animal detection. Cloud deployment, Cognito, Lex, notifications and video are not complete.
 See [docs/PROGRESS.md](docs/PROGRESS.md) for the audit, executed checks, commits and limitations.
 See [docs/API.md](docs/API.md) for the frontend integration contract.
 
@@ -19,7 +19,9 @@ The API listens at http://127.0.0.1:3001/api/health.
 The ignored backend/.env in this working copy points to the existing A1 Python environment for real thumbnails.
 On another machine, copy backend/.env.example to backend/.env and set ECOGUARD_PYTHON.
 Install backend/workers/requirements.txt into that Python environment.
-Without ECOGUARD_PYTHON, uploads still work but thumbnails are not produced.
+Configure ECOGUARD_MODEL_PATH and ECOGUARD_CONFIDENCE for real detection; see [docs/DETECTION.md](docs/DETECTION.md).
+Weights must be explicitly downloaded before use. Missing detection setup leaves stored media failed and retryable.
+Without ECOGUARD_PYTHON, uploads still work but thumbnails are not produced and processing fails.
 Local SQLite metadata and originals are stored in backend/data. DATA_DIR can override this.
 Do not run multiple local backend processes against the same data directory.
 

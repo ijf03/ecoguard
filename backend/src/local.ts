@@ -1,4 +1,5 @@
 import { PythonThumbnailer } from './processing/thumbnail.js';
+import { PythonDetector } from './processing/detector.js';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { SqliteRepository } from './database/sqlite.js';
@@ -14,5 +15,8 @@ export async function createLocalServices(directory: string) {
     const records = await repository.list();
     await storage.recover(new Set(records.flatMap(item => [item.storageKey, ...(item.thumbnailKey ? [item.thumbnailKey] : [])])));
   } catch (error) { repository.close(); throw error; }
-  return { media: new MediaService(repository, storage, process.env.ECOGUARD_PYTHON ? new PythonThumbnailer(process.env.ECOGUARD_PYTHON) : undefined), close: () => repository.close() };
+  return { media: new MediaService(repository, storage,
+    process.env.ECOGUARD_PYTHON ? new PythonThumbnailer(process.env.ECOGUARD_PYTHON) : undefined,
+    new PythonDetector(process.env.ECOGUARD_PYTHON ?? '', process.env.ECOGUARD_MODEL_PATH ?? '', process.env.ECOGUARD_CONFIDENCE ?? '0.25')),
+    close: () => repository.close() };
 }

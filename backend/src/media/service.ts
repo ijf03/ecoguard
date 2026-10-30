@@ -1,4 +1,5 @@
 import type { Thumbnailer } from '../processing/thumbnail.js';
+import { validateDetection, type Detector } from '../processing/detector.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { matches } from './search.js';
 import { ApiError } from '../http/errors.js';
@@ -20,7 +21,7 @@ export class MediaService {
   // Serialize mutations for deterministic local checksum deduplication.
   // A cloud adapter must enforce unique checksum writes across Lambda instances.
   private pending: Promise<unknown> = Promise.resolve();
-  constructor(private readonly repository: MediaRepository, private readonly storage: Storage, private readonly thumbnailer?: Thumbnailer) {}
+  constructor(private readonly repository: MediaRepository, private readonly storage: Storage, private readonly thumbnailer?: Thumbnailer, private readonly detector?: Detector) {}
   upload(bytes: Buffer, contentType: string, filename: string, visibility: 'private' | 'public' = 'private') {
     const work = this.pending.then(() => this.uploadOne(bytes, contentType, filename, visibility));
     this.pending = work.catch(() => undefined);
@@ -37,7 +38,7 @@ export class MediaService {
     const id = randomUUID();
     const media: Media = { id, filename, checksum, storageKey: id, contentType, size: bytes.length,
       createdAt: new Date().toISOString(), visibility, processingStatus: 'pending', species: {}, manualTags: [] };
-    // Decode before writing anything. ML status stays pending until a real detector runs.
+    // Decode before writing anything.
     const thumbnail = this.thumbnailer ? await this.thumbnailer.create(bytes) : undefined;
     if (thumbnail) {
       media.thumbnailKey = randomUUID();
@@ -53,7 +54,49 @@ export class MediaService {
     }
     try { await this.repository.save(media); }
     catch (error) { await this.storage.remove(id); if (media.thumbnailKey) await this.storage.remove(media.thumbnailKey); throw error; }
-    return { media, duplicate: false };
+    return { media: this.detector ? await this.processOne(id) : media, duplicate: false };
+  }
+  process(id: string) {
+    const work = this.pending.then(() => this.processOne(id));
+    this.pending = work.catch(() => undefined);
+    return work;
+  }
+  private async processOne(id: string): Promise<Media> {
+    const media = await this.get(id);
+    // Clear stale inferred results before an attempt, retaining manual annotations.
+    media.processingStatus = 'pending';
+    media.species = {};
+    delete media.detectionModel;
+    delete media.processingError;
+    await this.repository.save(media);
+    try {
+      if (!this.detector) throw new Error('Detector not configured');
+      const bytes = await this.storage.get(media.storageKey);
+      if (!media.thumbnailKey) {
+        if (!this.thumbnailer) throw new Error('Thumbnail processor not configured');
+        const thumbnail = await this.thumbnailer.create(bytes);
+        const key = randomUUID();
+        try { await this.storage.put(key, thumbnail.bytes); }
+        catch (error) { await this.storage.remove(key); throw error; }
+        media.thumbnailKey = key;
+        media.width = thumbnail.originalWidth;
+        media.height = thumbnail.originalHeight;
+        media.thumbnailWidth = thumbnail.width;
+        media.thumbnailHeight = thumbnail.height;
+        try { await this.repository.save(media); }
+        catch (error) { await this.storage.remove(key); delete media.thumbnailKey; throw error; }
+      }
+      const result = validateDetection(await this.detector.detect(bytes));
+      const completed: Media = { ...media, species: result.species, detectionModel: result.model, processingStatus: 'complete' };
+      await this.repository.save(completed);
+      return completed;
+    } catch {
+      media.processingStatus = 'failed';
+      media.processingError = 'DETECTION_FAILED: Check Python, Pillow, Ultralytics, model path and confidence; see docs/DETECTION.md. Retry processing after setup.';
+      // A failed completion write must never leave an in-memory complete response.
+      await this.repository.save(media);
+      return media;
+    }
   }
   deleteMany(ids: string[]) {
     const work = this.pending.then(async () => {

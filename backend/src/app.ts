@@ -86,6 +86,12 @@ export function createApp(options: AppOptions = {}) {
         json(response, result.duplicate ? 200 : 201, { ...result, media: present(result.media) });
         return;
       }
+      const processing = /^\/api\/media\/([a-f0-9-]{36})\/process$/.exec(path);
+      if (processing && options.media) {
+        requireMethod('POST');
+        json(response, 200, { media: present(await options.media.process(processing[1]!)) });
+        return;
+      }
       const detail = /^\/api\/media\/([a-f0-9-]{36})$/.exec(path);
       if (detail && options.media) {
         requireMethod('GET');

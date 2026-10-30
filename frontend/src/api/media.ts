@@ -10,6 +10,8 @@ export interface Media {
   processingStatus: 'pending' | 'complete' | 'failed';
   species: Record<string, number>;
   manualTags: string[];
+  detectionModel?: { identity: string; version: string; weightsSha256: string; confidence: number };
+  processingError?: string;
   originalUrl: string;
   thumbnailUrl?: string;
   width?: number;
@@ -39,6 +41,7 @@ export function createMediaApi(send: ApiFetch = (path, options) => fetch(path, o
   });
   return {
     list: () => request<{ media: Media[] }>('/api/media'),
+    process: (id: string) => post<{ media: Media }>(`/api/media/${encodeURIComponent(id)}/process`, {}),
     get: (id: string) => request<{ media: Media }>(`/api/media/${encodeURIComponent(id)}`),
     upload: (file: File, visibility: 'private' | 'public' = 'private') =>
       request<{ media: Media; duplicate: boolean }>('/api/media', {

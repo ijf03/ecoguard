@@ -11,6 +11,8 @@ export interface Media {
   processingStatus: 'pending' | 'complete' | 'failed';
   species: Record<string, number>;
   manualTags: string[];
+  detectionModel?: import('../processing/detector.js').Detection['model'];
+  processingError?: string;
   thumbnailKey?: string;
   width?: number;
   height?: number;

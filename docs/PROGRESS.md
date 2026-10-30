@@ -119,8 +119,32 @@ Then video processing and authorized serverless cloud deployment after account/f
 ## Final state
 Local backend iterations 1-3 complete; thumbnail portion of 4 complete; text/count/lost-pet/thumbnail search portions of 5 complete;
 local bulk tagging/deletion portion of 6 complete; typed API client portion of 7 complete.
-Not implemented: wildlife inference, temporary query image search, video pipeline, Cognito/ownership, deployed serverless services,
+Not implemented: temporary query image search, video pipeline, Cognito/ownership, deployed serverless services,
 secondary-cloud integration, Lex, notifications, application UI screens, assignment reports and demo preparation.
 No cloud resources, billing changes, push or merge performed. Original directory remains unchanged.
 All implementation commits are local in this writable repository copy. Open this copy in VS Code before continuing.
 AI assistance: generated code and tests via ChatGPT/Codex; inspect and understand before submission and acknowledge in reports.
+
+## Iteration 8 - Real local animal detection (30 October 2026)
+
+Initial inspection: clean Git working tree; confirmed prior upload/dedup, SQLite/local storage, Pillow,
+species/count/lost-pet/thumbnail search, bulk tagging/deletion and typed client in actual source.
+Acceptance: existing-file YOLO adapter configured by environment; real animal counts and provenance;
+completion after inference and persistence; retry without duplicate upload; manual tag preservation;
+deterministic orchestration/persistence/failure/search tests and separate real inference; builds and local commit.
+
+Implemented replaceable Detector, bounded Python worker, YOLO11n CPU COCO animal filtering, model filename,
+Ultralytics version, weight checksum and confidence persistence. No A1 parking model reuse.
+POST /api/media/:id/process and typed mediaApi.process retry stored originals and clear stale inference.
+Manual tags survive. Failed inference returns failed metadata; no fabricated detections.
+Local requests remain serialized and synchronous; model reloads per image. No cloud/background jobs.
+
+Verified actual interpreter imports: Python 3.12.10, Ultralytics 8.4.156, torch 2.14.0+cpu, Pillow 12.3.0.
+Explicitly downloaded YOLO11n and public test images into ignored backend/data. Real pipeline observed cat:2,
+dog:1 and zero animals on bus image, including actual thumbnails, SQLite indexing and species search.
+Deterministic tests separately cover retry, stale count replacement, retained manual tags, deduplication,
+SQLite reopen and failed completion persistence. All 19 backend tests passed, zero skipped in real configured run.
+Backend TypeScript checks/build and frontend build/lint pass. Python editor import diagnostics still point at
+an environment without these packages; runtime imports and real worker execution succeeded in the configured venv.
+Setup, sample sources, supported ten animal classes and accuracy limits documented in DETECTION.md.
+No fox/cane-toad/breed/colour inference claimed. No unrelated UI edits, cloud resources, billing changes or push.

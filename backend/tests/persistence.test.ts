@@ -28,7 +28,7 @@ test('SQLite close/reopen preserves listing, detail, bytes and checksum uniquene
   assert.equal(detail.status, 200);
   assert.equal(detail.json.media.filename, 'cat.png');
   assert.equal(detail.json.media.visibility, 'public');
-  assert.equal(detail.json.media.processingStatus, 'pending');
+  assert.equal(detail.json.media.processingStatus, 'failed'); // Local composition has no configured model in tests.
   assert.equal(detail.json.media.checksum, upload.media.checksum);
   assert.equal(detail.json.media.createdAt, upload.media.createdAt);
   const original = await call(detail.json.media.originalUrl);
