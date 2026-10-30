@@ -5,10 +5,7 @@ async function main() {
     throw new Error("Health handler is not a function");
   }
 
-  const result = await handler(
-    {} as any,
-    {} as any,
-  );
+  const result = await handler();
 
   console.log(result);
 }

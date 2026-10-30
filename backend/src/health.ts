@@ -1,6 +1,6 @@
-import type { APIGatewayProxyHandlerV2 } from "aws-lambda";
+// API Gateway HTTP API compatible; also used by the local server.
 
-export const handler: APIGatewayProxyHandlerV2 = async () => {
+export const handler = async () => {
   return {
     statusCode: 200,
     headers: {

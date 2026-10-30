@@ -1,93 +1,61 @@
-# A2 Aussie EcoGuard
+# Aussie EcoGuard - Group 80
 
+Local-first FIT3184 Assignment 2 implementation. Cloud deployment, Cognito, wildlife ML, Lex, notifications and video are not complete.
+See [docs/PROGRESS.md](docs/PROGRESS.md) for the audit, executed checks, commits and limitations.
+See [docs/API.md](docs/API.md) for the frontend integration contract.
 
+## Run locally
 
-## Getting started
+Requires Node 22.13+ with built-in node:sqlite, npm, and optionally Python with Pillow.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+From this repository:
+~~~powershell
+cd backend
+npm ci
+npm run dev
+~~~
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+The API listens at http://127.0.0.1:3001/api/health.
+The ignored backend/.env in this working copy points to the existing A1 Python environment for real thumbnails.
+On another machine, copy backend/.env.example to backend/.env and set ECOGUARD_PYTHON.
+Install backend/workers/requirements.txt into that Python environment.
+Without ECOGUARD_PYTHON, uploads still work but thumbnails are not produced.
+Local SQLite metadata and originals are stored in backend/data. DATA_DIR can override this.
+Do not run multiple local backend processes against the same data directory.
 
-## Add your files
+In a second terminal:
+~~~powershell
+cd frontend
+npm ci
+npm run dev
+~~~
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+Vite proxies /api to port 3001. The existing frontend starter has intentionally been preserved for teammate work;
+the tested client is at frontend/src/api/media.ts. Application pages are not connected yet.
 
-```
-cd existing_repo
-git remote add origin https://git.infotech.monash.edu/fit3184_g80/a2-aussie-ecoguard.git
-git branch -M main
-git push -uf origin main
-```
+## Verify
 
-## Integrate with your tools
+~~~powershell
+cd backend
+npm test
+npm run typecheck
+npm run build
+~~~
 
-* [Set up project integrations](https://git.infotech.monash.edu/fit3184_g80/a2-aussie-ecoguard/-/settings/integrations)
+To include the real Pillow integration test, set TEST_PYTHON to the same Python executable as ECOGUARD_PYTHON before npm test.
+Without TEST_PYTHON, that one integration test is reported as skipped.
+Frontend: npm run build and npm run lint from frontend.
+HTTP tests use named pipes on Windows because the agent sandbox blocks TCP loopback; browser interaction remains unverified.
 
-## Collaborate with your team
+## Deployment boundary
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+The Node server, SQLite and local filesystem are development adapters, not the production architecture.
+Local API has no authentication or ownership enforcement and must stay loopback-only. NODE_ENV=production is rejected.
+Cloud integration must add Cognito authorization, per-user access, S3 events, serverless processors,
+least-privilege roles and secure secondary-cloud access. Do not deploy the local server.
+No resources have been provisioned and nothing has been pushed.
 
-## Test and Deploy
+## Team and AI use
 
-Use the built-in continuous integration in GitLab.
-
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Frontend pages remain available for teammate contribution; the API client and contract provide integration boundaries.
+Both members should own, understand and commit their contributions. Record AI assistance in the reports as required by the specification.
