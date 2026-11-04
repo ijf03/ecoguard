@@ -1,4 +1,6 @@
 import type { Thumbnailer } from '../processing/thumbnail.js';
+import type { ImageValidator } from '../processing/image-validator.js';
+import { validateVideo, type VideoProcessor } from '../processing/video.js';
 import { validateDetection, type Detector } from '../processing/detector.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { matches } from './search.js';
@@ -21,14 +23,29 @@ export class MediaService {
   // Serialize mutations for deterministic local checksum deduplication.
   // A cloud adapter must enforce unique checksum writes across Lambda instances.
   private pending: Promise<unknown> = Promise.resolve();
-  constructor(private readonly repository: MediaRepository, private readonly storage: Storage, private readonly thumbnailer?: Thumbnailer, private readonly detector?: Detector) {}
+  constructor(private readonly repository: MediaRepository, private readonly storage: Storage, private readonly thumbnailer?: Thumbnailer, private readonly detector?: Detector, private readonly imageValidator?: ImageValidator, private readonly videoProcessor?: VideoProcessor) {}
+  searchImage(bytes: Buffer, declared: string, lostPet?: { since: string; until: string; tags: string[] }) {
+    const work = this.pending.then(async () => {
+      if (bytes.length > 10 * 1024 * 1024) throw new ApiError(413, 'FILE_TOO_LARGE', 'Image exceeds 10 MiB.');
+      validateImage(bytes, declared);
+      if (!this.detector || !this.imageValidator) throw new ApiError(503, 'PROCESSOR_UNAVAILABLE', 'Configure Python, Pillow and the detector.');
+      await this.imageValidator.validate(bytes);
+      const result = validateDetection(await this.detector.detect(bytes));
+      if (!Object.keys(result.species).length) return [];
+      const items = await this.search(result.species, lostPet?.since, lostPet?.until);
+      return lostPet ? items.filter(item => lostPet.tags.every(tag => item.manualTags.includes(tag))) : items;
+    });
+    this.pending = work.catch(() => undefined);
+    return work;
+  }
   upload(bytes: Buffer, contentType: string, filename: string, visibility: 'private' | 'public' = 'private') {
     const work = this.pending.then(() => this.uploadOne(bytes, contentType, filename, visibility));
     this.pending = work.catch(() => undefined);
     return work;
   }
   private async uploadOne(bytes: Buffer, declared: string, filename: string, visibility: 'private' | 'public') {
-    const contentType = validateImage(bytes, declared);
+    const isVideo = declared.startsWith('video/');
+    const contentType = isVideo ? validateVideo(bytes, declared) : validateImage(bytes, declared);
     if (!filename.trim() || filename.length > 255 || /[\x00-\x1f\\/]/.test(filename)) {
       throw new ApiError(400, 'INVALID_FILENAME', 'Filename must be 1-255 characters without paths or control characters.');
     }
@@ -37,9 +54,9 @@ export class MediaService {
     if (existing) return { media: existing, duplicate: true };
     const id = randomUUID();
     const media: Media = { id, filename, checksum, storageKey: id, contentType, size: bytes.length,
-      createdAt: new Date().toISOString(), visibility, processingStatus: 'pending', species: {}, manualTags: [] };
-    // Decode before writing anything.
-    const thumbnail = this.thumbnailer ? await this.thumbnailer.create(bytes) : undefined;
+      createdAt: new Date().toISOString(), visibility, processingStatus: 'pending', species: {}, manualTags: [], mediaType: isVideo ? 'video' : 'image' };
+    // Images decode before storage; video originals remain retryable if probing fails.
+    const thumbnail = !isVideo && this.thumbnailer ? await this.thumbnailer.create(bytes) : undefined;
     if (thumbnail) {
       media.thumbnailKey = randomUUID();
       media.width = thumbnail.originalWidth;
@@ -68,10 +85,20 @@ export class MediaService {
     media.species = {};
     delete media.detectionModel;
     delete media.processingError;
+    delete media.duration;
+    delete media.sampledAt;
     await this.repository.save(media);
     try {
       if (!this.detector) throw new Error('Detector not configured');
       const bytes = await this.storage.get(media.storageKey);
+      if (media.contentType === 'video/mp4') {
+        if (!this.videoProcessor) throw new Error('Video processor not configured');
+        const result = await this.videoProcessor.process(bytes, this.detector);
+        validateDetection(result);
+        const completed: Media = { ...media, duration: result.duration, sampledAt: result.sampledAt, species: result.species, detectionModel: result.model, processingStatus: 'complete' };
+        await this.repository.save(completed);
+        return completed;
+      }
       if (!media.thumbnailKey) {
         if (!this.thumbnailer) throw new Error('Thumbnail processor not configured');
         const thumbnail = await this.thumbnailer.create(bytes);
@@ -90,9 +117,10 @@ export class MediaService {
       const completed: Media = { ...media, species: result.species, detectionModel: result.model, processingStatus: 'complete' };
       await this.repository.save(completed);
       return completed;
-    } catch {
+    } catch (error) {
       media.processingStatus = 'failed';
-      media.processingError = 'DETECTION_FAILED: Check Python, Pillow, Ultralytics, model path and confidence; see docs/DETECTION.md. Retry processing after setup.';
+      media.processingError = error instanceof ApiError ? `${error.code}: ${error.message}` :
+        'PROCESSING_FAILED: Check input validity, duration/codec limits, FFmpeg/ffprobe, Python, Pillow, Ultralytics, model path and confidence; see docs/DETECTION.md. Retry processing after setup.';
       // A failed completion write must never leave an in-memory complete response.
       await this.repository.save(media);
       return media;
@@ -129,9 +157,9 @@ export class MediaService {
     this.pending = work.catch(() => undefined);
     return work;
   }
-  async search(tags: Record<string, number>, publicSince?: string) {
+  async search(tags: Record<string, number>, publicSince?: string, publicUntil?: string) {
     return (await this.repository.list()).filter(item =>
-      (!publicSince || (item.visibility === 'public' && item.createdAt >= publicSince)) && matches(item, tags));
+      (!publicSince || (item.visibility === 'public' && item.createdAt >= publicSince && (!publicUntil || item.createdAt <= publicUntil))) && matches(item, tags));
   }
   list() { return this.repository.list(); }
   async get(id: string) {

@@ -3,7 +3,10 @@ export interface Media {
   id: string;
   filename: string;
   checksum: string;
-  contentType: 'image/png' | 'image/jpeg' | 'image/webp';
+  contentType: 'image/png' | 'image/jpeg' | 'image/webp' | 'video/mp4';
+  mediaType?: 'image' | 'video';
+  duration?: number;
+  sampledAt?: number[];
   size: number;
   createdAt: string;
   visibility: 'private' | 'public';
@@ -48,8 +51,18 @@ export function createMediaApi(send: ApiFetch = (path, options) => fetch(path, o
         method: 'POST', headers: { 'Content-Type': file.type, 'X-Filename': encodeURIComponent(file.name), 'X-Visibility': visibility }, body: file,
       }),
     search: (tags: Record<string, number>) => post<{ media: Media[] }>('/api/search', { tags }),
-    lostPet: (species: string, tags: string[] = [], since?: string) =>
-      post<{ media: Media[] }>('/api/search/lost-pet', { species, tags, ...(since ? { since } : {}) }),
+    searchImage: (file: File) => request<{ media: Media[] }>('/api/search/image', {
+      method: 'POST', headers: { 'Content-Type': file.type }, body: file,
+    }),
+    lostPet: (species: string, tags: string[] = [], since?: string, until?: string) =>
+      post<{ media: Media[] }>('/api/search/lost-pet', { species, tags, ...(since ? { since } : {}), ...(until ? { until } : {}) }),
+    lostPetImage: (file: File, options: { tags?: string[]; since?: string; until?: string } = {}) => {
+      const query = new URLSearchParams();
+      for (const tag of options.tags ?? []) query.append('tag', tag);
+      if (options.since) query.set('since', options.since);
+      if (options.until) query.set('until', options.until);
+      return request<{ media: Media[] }>(`/api/search/lost-pet/image?${query}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
+    },
     fromThumbnail: (thumbnailUrl: string) => post<{ media: Media }>('/api/search/thumbnail', { thumbnailUrl }),
     editTags: (urls: string[], tags: string[], operation: 0 | 1) =>
       post<{ media: Media[] }>('/api/media/tags', { urls, tags, operation }),

@@ -116,7 +116,7 @@ No browser interaction test: Computer helper unavailable and sandbox TCP connect
 Next: obtain animal-capable model weights; implement real detection and temporary image queries; teammate connects pages.
 Then video processing and authorized serverless cloud deployment after account/free-tier/billing verification.
 
-## Final state
+## State before animal detection and query/video iterations
 Local backend iterations 1-3 complete; thumbnail portion of 4 complete; text/count/lost-pet/thumbnail search portions of 5 complete;
 local bulk tagging/deletion portion of 6 complete; typed API client portion of 7 complete.
 Not implemented: temporary query image search, video pipeline, Cognito/ownership, deployed serverless services,
@@ -148,3 +148,47 @@ Backend TypeScript checks/build and frontend build/lint pass. Python editor impo
 an environment without these packages; runtime imports and real worker execution succeeded in the configured venv.
 Setup, sample sources, supported ten animal classes and accuracy limits documented in DETECTION.md.
 No fox/cane-toad/breed/colour inference claimed. No unrelated UI edits, cloud resources, billing changes or push.
+
+## Iteration 9 - Temporary image search
+
+Clean initial working tree. Added validation-only Pillow mode, in-memory searchImage orchestration,
+raw image HTTP endpoint and typed client method. Query counts use AND/minimum thresholds; no animals
+returns no records. Deterministic tests compare storage directory contents and database records before/after
+successful, empty, invalid and failed queries. Real query checks extend the existing opt-in YOLO test.
+Iteration 9 checks: 20/20 tests passed with real YOLO enabled; backend typecheck/build and frontend build/lint passed.
+Real temporary cat query matched the indexed cat image; bus query returned no matches; corrupt PNG rejected.
+Suggested commit: feat: add temporary animal image search without persistence. No commit performed.
+
+## Iteration 10 - Lost-pet image search
+
+Reused temporary-image orchestration; added public-only inclusive date window and AND/manual descriptive tags.
+Shared strict UTC date validation with text lost-pet queries, adding optional until while preserving since.
+Deterministic fixtures cover private/old/too-new sightings, date boundaries, multiple tags, empty detections,
+invalid dates/windows and missing processor. Suggested commit: feat: add public lost-pet image queries.
+Iteration 10 checks: 21/21 tests passed with real query checks enabled; backend typecheck/build and frontend
+build/lint passed. Later full-suite real checks also proved private/public lost-pet image filtering.
+
+## Iteration 11 - Bounded local MP4 processing
+
+Inspected upload/process/retrieval/storage and existing deletion adapters before extending them.
+Added MP4/H.264 signature and ffprobe validation, replaceable FFmpeg adapter and explicit executable config.
+Separate upload size limit defaults to 50 MiB (configuration capped at 200 MiB). Duration <=120s, <=12 frames,
+source <=3840x2160. Sampling timestamps are 0,10,20... strictly before duration. Per-species maxima are
+not unique-animal counts. Job deadline 180s; subprocesses bounded/cancellable; service concurrency is one.
+Originals stay stored after validation/inference failures and support the existing explicit retry/dedup flow.
+Legacy image metadata is compatible; videos persist type, duration, sample times, counts and model provenance.
+Range GET (206/416), suffix/open ranges and HEAD support browser-compatible MP4 retrieval; no video posters.
+Isolated temporary input directory is removed on success, failure and timeout; frames stay in memory.
+No persistent inference server, new cloud resources, billing changes, push, merge or commits.
+
+Executed real FFmpeg/ffprobe 8.1.1 and existing YOLO/Pillow: generated 11s cat clip, samples [0,10], cat:2
+maximum; SQLite/index search verified. Corrupt MP4 retained original and removed temporary processing data.
+Real image query also verified no-animal bus results and private/public lost-pet filtering.
+All 24 backend tests passed with zero skipped in configured full run. Backend TypeScript checks/build,
+frontend build/lint passed. Tests clearly label mock versus real processing. Documentation: API.md,
+DETECTION.md and VIDEO.md. Suggested commit: feat: add bounded MP4 processing with sampled detection and range playback.
+
+Current local backend checklist: temporary-image query, lost-pet image query and sampled MP4 processing implemented.
+Not verified: interactive browser playback, real moving-wildlife accuracy, abrupt-process-crash temp cleanup.
+Still pending: Cognito/ownership, cloud event/serverless adapters and secondary-cloud persistence, Lex,
+notifications, frontend application screens, deployed integration, assignment reports/demo.

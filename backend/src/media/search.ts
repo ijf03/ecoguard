@@ -35,11 +35,27 @@ export function lostPetQuery(value: unknown) {
     throw new ApiError(400, 'INVALID_QUERY', 'tags must be an array with at most 31 items.');
   }
   const tags = Object.fromEntries([tagName(body.species), ...((body.tags ?? []) as unknown[]).map(tagName)].map(tag => [tag, 1]));
-  const since = body.since === undefined ? new Date(Date.now() - 30 * 86400000).toISOString() : body.since;
-  if (typeof since !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(since) || !Number.isFinite(Date.parse(since))) {
-    throw new ApiError(400, 'INVALID_QUERY', 'since must be an ISO timestamp.');
-  }
-  return { tags, since: new Date(since).toISOString() };
+  return { tags, ...dateWindow(body) };
+}
+
+export function dateWindow(body: Record<string, unknown>) {
+  const now = Date.now();
+  const parse = (value: unknown, fallback: number) => {
+    if (value === undefined) return new Date(fallback).toISOString();
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/.test(value) ||
+        !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0, 19) !== value.slice(0, 19)) {
+      throw new ApiError(400, 'INVALID_QUERY', 'Dates must be valid UTC ISO timestamps ending in Z.');
+    }
+    return new Date(value).toISOString();
+  };
+  const since = parse(body.since, now - 30 * 86400000);
+  const until = parse(body.until, now);
+  if (since > until) throw new ApiError(400, 'INVALID_QUERY', 'since must not be after until.');
+  return { since, until };
+}
+export function lostPetImageQuery(body: Record<string, unknown>) {
+  if (body.tags !== undefined && (!Array.isArray(body.tags) || body.tags.length > 31)) throw new ApiError(400, 'INVALID_QUERY', 'Supply at most 31 descriptive tags.');
+  return { ...dateWindow(body), tags: ((body.tags ?? []) as unknown[]).map(tagName) };
 }
 
 export function mediaIds(value: unknown): string[] {

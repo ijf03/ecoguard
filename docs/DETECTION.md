@@ -73,3 +73,16 @@ Executed 30 October 2026: cats image → `cat:2`; dog image → `dog:1`; bus neg
 Each used real Pillow thumbnails, YOLO inference, SQLite persistence and count search. All 19 tests passed,
 zero skipped with the variables above. This small smoke check does not establish accuracy on Australian wildlife.
 Weights and sample images live in ignored `backend/data`; tests never fetch them automatically.
+
+## Temporary image queries
+
+/api/search/image reuses YOLO after validation-only Pillow decode (including pixel/decompression limits).
+It uses no temporary files, creates no thumbnail and writes no metadata or originals.
+Detected query counts are AND/minimum thresholds, not similarity scores. An empty detection returns [].
+Lost-pet image queries reuse this pipeline, filter public sightings by date and AND user-supplied manual descriptions. No breed or colour inference is added.
+
+## Video reuse
+
+The replaceable FFmpeg adapter invokes this same detector on bounded sampled JPEG frames, with cancellation
+propagated to the Python subprocess. Counts are maxima across samples, never summed as unique animals.
+The animal-class limitations above also apply to videos. See [VIDEO.md](./VIDEO.md) for limits and setup.

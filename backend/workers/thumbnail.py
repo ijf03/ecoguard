@@ -19,6 +19,10 @@ try:
         probe.verify()
     with Image.open(io.BytesIO(raw)) as source:
         image = ImageOps.exif_transpose(source)
+        image.load()
+        if "--validate" in sys.argv:
+            print(json.dumps({"valid": True}))
+            sys.exit(0)
         original = image.size
         image.thumbnail((320, 320), Image.Resampling.LANCZOS)
         rgba = image.convert("RGBA")

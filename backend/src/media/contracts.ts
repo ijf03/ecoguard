@@ -4,7 +4,10 @@ export interface Media {
   filename: string;
   checksum: string;
   storageKey: string;
-  contentType: ImageType;
+  contentType: ImageType | 'video/mp4';
+  mediaType?: 'image' | 'video'; // Absent in legacy image metadata.
+  duration?: number;
+  sampledAt?: number[];
   size: number;
   createdAt: string;
   visibility: 'private' | 'public';

@@ -7,7 +7,7 @@ if (process.env.NODE_ENV === 'production') throw new Error('Local development se
 const port = Number(process.env.PORT ?? 3001);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be between 1 and 65535.');
 const services = await createLocalServices(process.env.DATA_DIR ?? 'data');
-const app = createApp(services);
+const app = createApp({ ...services, maxVideoUploadBytes: Number(process.env.ECOGUARD_MAX_VIDEO_BYTES ?? 50 * 1024 * 1024) });
 app.listen(port, '127.0.0.1', () => console.log(`EcoGuard local API: http://127.0.0.1:${port}/api/health`));
 for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => app.close(() => services.close()));
 app.once('error', error => { services.close(); console.error(error); process.exitCode = 1; });

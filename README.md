@@ -1,12 +1,12 @@
 # Aussie EcoGuard - Group 80
 
-Local-first FIT3184 Assignment 2 implementation with local YOLO animal detection. Cloud deployment, Cognito, Lex, notifications and video are not complete.
+Local-first FIT3184 Assignment 2 implementation with YOLO animal detection, temporary/lost-pet image queries and sampled MP4 processing. Cloud deployment, Cognito, Lex and notifications are not complete.
 See [docs/PROGRESS.md](docs/PROGRESS.md) for the audit, executed checks, commits and limitations.
 See [docs/API.md](docs/API.md) for the frontend integration contract.
 
 ## Run locally
 
-Requires Node 22.13+ with built-in node:sqlite, npm, and optionally Python with Pillow.
+Requires Node 22.13+ with built-in node:sqlite and npm. Detection/image queries require configured Python, Pillow and Ultralytics; video processing also requires FFmpeg and ffprobe.
 
 From this repository:
 ~~~powershell
@@ -45,7 +45,9 @@ npm run build
 ~~~
 
 To include the real Pillow integration test, set TEST_PYTHON to the same Python executable as ECOGUARD_PYTHON before npm test.
-Without TEST_PYTHON, that one integration test is reported as skipped.
+Without TEST_PYTHON, the Pillow integration test is reported as skipped.
+The real detector and video tests additionally require TEST_MODEL_PATH, TEST_IMAGE_DIR and (for video)
+TEST_FFMPEG/TEST_FFPROBE. Skipped tests are not real-inference verification; see [docs/VIDEO.md](docs/VIDEO.md).
 Frontend: npm run build and npm run lint from frontend.
 HTTP tests use named pipes on Windows because the agent sandbox blocks TCP loopback; browser interaction remains unverified.
 
@@ -61,3 +63,11 @@ No resources have been provisioned and nothing has been pushed.
 
 Frontend pages remain available for teammate contribution; the API client and contract provide integration boundaries.
 Both members should own, understand and commit their contributions. Record AI assistance in the reports as required by the specification.
+## Additional local workflows
+
+`POST /api/search/image` accepts a temporary query image without storage. `POST /api/search/lost-pet/image`
+adds public/date/manual-tag filters. Query counts use AND/minimum thresholds; no animals returns no matches.
+`POST /api/media` also accepts MP4/H.264 videos (50 MiB default, 120 seconds maximum).
+Samples at 0, 10, 20... seconds use maximum observed species counts, not unique-animal counts.
+Original URLs support GET/HEAD and single HTTP byte ranges. Retry uses the existing process endpoint.
+See [API examples](docs/API.md) and [video setup, limits and evidence](docs/VIDEO.md).
