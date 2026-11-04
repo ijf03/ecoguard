@@ -21,7 +21,9 @@ On another machine, copy backend/.env.example to backend/.env and set ECOGUARD_P
 Install backend/workers/requirements.txt into that Python environment.
 Configure ECOGUARD_MODEL_PATH and ECOGUARD_CONFIDENCE for real detection; see [docs/DETECTION.md](docs/DETECTION.md).
 Weights must be explicitly downloaded before use. Missing detection setup leaves stored media failed and retryable.
-Without ECOGUARD_PYTHON, uploads still work but thumbnails are not produced and processing fails.
+Without a working ECOGUARD_PYTHON/Pillow, image uploads return a structured error before storage;
+validation is never silently reduced to signature checking in the local server. Validated images with missing
+model setup remain stored with failed processing and can be retried. Video processing failures retain originals.
 Local SQLite metadata and originals are stored in backend/data. DATA_DIR can override this.
 Do not run multiple local backend processes against the same data directory.
 
@@ -40,6 +42,7 @@ the tested client is at frontend/src/api/media.ts. Application pages are not con
 ~~~powershell
 cd backend
 npm test
+npm run test:real
 npm run typecheck
 npm run build
 ~~~
@@ -50,6 +53,9 @@ The real detector and video tests additionally require TEST_MODEL_PATH, TEST_IMA
 TEST_FFMPEG/TEST_FFPROBE. Skipped tests are not real-inference verification; see [docs/VIDEO.md](docs/VIDEO.md).
 Frontend: npm run build and npm run lint from frontend.
 HTTP tests use named pipes on Windows because the agent sandbox blocks TCP loopback; browser interaction remains unverified.
+The new restart audit also executes real TCP requests across two separate Node processes outside that sandbox.
+`npm run test:real` loads local processing configuration and checks dependencies/fixtures before running
+the complete suite; missing prerequisites fail instead of silently skipping. See [latest audit](docs/LOCAL_AUDIT.md).
 
 ## Deployment boundary
 
@@ -58,6 +64,8 @@ Local API has no authentication or ownership enforcement and must stay loopback-
 Cloud integration must add Cognito authorization, per-user access, S3 events, serverless processors,
 least-privilege roles and secure secondary-cloud access. Do not deploy the local server.
 No resources have been provisioned and nothing has been pushed.
+The [cloud transition proposal](docs/CLOUD_TRANSITION.md) maps existing adapters to AWS/GCP and records
+ownership/idempotence requirements, account prerequisites and the next iteration. It is not deployed configuration.
 
 ## Team and AI use
 

@@ -57,6 +57,9 @@ export class MediaService {
       createdAt: new Date().toISOString(), visibility, processingStatus: 'pending', species: {}, manualTags: [], mediaType: isVideo ? 'video' : 'image' };
     // Images decode before storage; video originals remain retryable if probing fails.
     const thumbnail = !isVideo && this.thumbnailer ? await this.thumbnailer.create(bytes) : undefined;
+    // The local composition supplies a validator even when thumbnails are unconfigured.
+    // Missing Python must not silently downgrade upload validation to magic bytes.
+    if (!isVideo && !this.thumbnailer && this.imageValidator) await this.imageValidator.validate(bytes);
     if (thumbnail) {
       media.thumbnailKey = randomUUID();
       media.width = thumbnail.originalWidth;

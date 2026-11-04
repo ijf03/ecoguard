@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { createLocalServices } from '../src/local.js';
+import { createLocalServices as compose } from '../src/local.js';
+// Tag transactions use deterministic decoding, independently of the local .env.
+const createLocalServices = (root: string) => compose(root, { python: '', imageValidator: { validate: async () => {} } });
 import { createApp } from '../src/app.js';
 import { serve } from './http-helper.js';
 

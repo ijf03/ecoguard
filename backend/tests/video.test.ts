@@ -51,6 +51,13 @@ test('mock FFmpeg: exact sampling, max aggregation, invalid metadata and cleanup
   assert.deepEqual(await readdir(root), []);
   await assert.rejects(new FFmpegVideoProcessor('missing-ecoguard-executable', 'missing-ecoguard-executable', { tempRoot: root }).process(video, detector));
   assert.deepEqual(await readdir(root), []);
+  codec = 'h264';
+  const deadlineProcessor = new FFmpegVideoProcessor('mock', 'mock', { run, tempRoot: root, timeoutMs: 100 });
+  await assert.rejects(deadlineProcessor.process(video, { detect: async (_bytes, signal) => {
+    await command(process.execPath, ['-e', 'setTimeout(()=>{},10000)'], { signal: signal!, timeout: 10000 });
+    return { species: {}, model };
+  } }), /timed out|aborted/);
+  assert.deepEqual(await readdir(root), []);
 });
 
 test('mock video workflow: persistence, dedup, serialized processing, failure/retry, search, ranges and deletion', async t => {

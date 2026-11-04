@@ -192,3 +192,33 @@ Current local backend checklist: temporary-image query, lost-pet image query and
 Not verified: interactive browser playback, real moving-wildlife accuracy, abrupt-process-crash temp cleanup.
 Still pending: Cognito/ownership, cloud event/serverless adapters and secondary-cloud persistence, Lex,
 notifications, frontend application screens, deployed integration, assignment reports/demo.
+
+## Iteration 12 - Local audit and validation hardening (4 November 2026)
+
+Started with a clean Git tree; reread all 9 specification and 7 rubric pages and inspected actual adapters/tests.
+Baseline full suite: 24 passed, zero skipped, using real Pillow/YOLO and FFmpeg/ffprobe. Source/test typecheck,
+backend build and frontend build/lint passed. Sandbox Node userInfo failed ENOMEM; tests ran outside sandbox.
+PDF reader was installed only in ignored .tools/pdfdeps; the existing Python environment was not modified.
+
+Confirmed gap: local composition accepted signature-valid images without full decode when Python was missing.
+Fixed fail-closed validation before permanent writes; missing executables now give structured 503 errors.
+Added actual TCP/server-process restart persistence/dedup/byte-retrieval test (explicitly mocked decoding),
+corrupt/missing-decoder regressions, and shared video deadline cancellation/cleanup testing.
+Focused 5 tests passed with typecheck/build. Suggested commit: fix: require image decoding and strengthen
+restart and timeout verification. No commit performed.
+
+## Iteration 13 - Reproducible verification and cloud handoff
+
+Added npm run test:real: verifies configured Python imports, weights, public fixtures and FFmpeg tools, then
+runs all tests; missing prerequisites fail explicitly. Confirmed missing-model invocation exits with failure.
+Loading .env exposed existing lifecycle fixtures depending on ambient Python; made those decoding choices
+explicitly injected/deterministic, separately retaining the actual Pillow/YOLO integration tests.
+Prepared LOCAL_AUDIT.md, CLOUD_TRANSITION.md and a disabled credential-free cloud configuration worksheet.
+The plan maps local SQLite/files/subprocess/HTTP coupling to Cognito/API Gateway/Lambda/S3 and GCP Firestore,
+plus Lex/SNS for outstanding rubric features. It details ownership, distributed dedup, leases/idempotence,
+deletion sagas, short-lived cross-cloud identity, prerequisites and the next testable metadata/auth iteration.
+Local cloud config presence checks found no AWS/GCP/Azure credentials/config/CLIs or cloud environment keys.
+No remote API, credits/billing check, provisioning, deployment, push, merge or commit was performed.
+Final configured run: 27 passed, zero failed/skipped; backend typecheck/build and frontend build/lint passed.
+No missing real-processing dependencies in this environment; missing-model fail-fast behaviour separately
+verified. Suggested commit: chore: add explicit real-processing verification and cloud transition handoff.

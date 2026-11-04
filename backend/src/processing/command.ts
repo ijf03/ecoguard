@@ -4,6 +4,7 @@ import { ApiError } from '../http/errors.js';
 /** Bounded, shell-free subprocess. Resolve/reject only after close so callers can clean files. */
 export function command(executable: string, args: string[], options: { input?: Buffer; signal?: AbortSignal; timeout?: number; maxBytes?: number } = {}): Promise<Buffer> {
   return new Promise((resolve, reject) => {
+    if (!executable.trim()) return reject(new ApiError(503, 'PROCESSOR_UNAVAILABLE', 'Configure processing executables and dependencies; see docs/DETECTION.md.'));
     if (options.signal?.aborted) return reject(new ApiError(503, 'PROCESSING_TIMEOUT', 'Processing timed out.'));
     const child = spawn(executable, args, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
     let failure: Error | undefined;

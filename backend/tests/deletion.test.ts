@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { createLocalServices } from '../src/local.js';
+import { createLocalServices as compose } from '../src/local.js';
+// Lifecycle tests inject decoding; real Pillow tests independently validate image bytes.
+const createLocalServices = (root: string) => compose(root, { python: '', imageValidator: { validate: async () => {} } });
 import { createApp } from '../src/app.js';
 import { serve } from './http-helper.js';
 import { MemoryRepository } from '../src/database/memory.js';

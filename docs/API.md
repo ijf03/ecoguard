@@ -23,6 +23,9 @@ The default frontend page remains the inspected Vite starter; it is not an appli
 
 JSON requests must use Content-Type: application/json. Maximum JSON body: 64 KiB.
 Images: JPEG/PNG/WebP, 10 MiB. Client sends File directly; do not wrap in multipart FormData.
+Local composition requires full image decoding before any permanent write. Missing Python/Pillow returns 503;
+undecodable images return 422. Having a recognizable signature alone does not suffice. Missing detection weights
+after successful image decoding is a separate retryable processing failure on the stored original.
 No progress percentage is supplied by fetch; show an indeterminate uploading state until it settles.
 Manual tags count as one occurrence. Real YOLO animal counts populate species after successful processing.
 Removing a detected tag currently removes that species entry; adding a tag manually records one occurrence.
@@ -111,3 +114,10 @@ curl.exe http://127.0.0.1:3001/api/media/UUID/file -H "Range: bytes=0-1023" -o f
 ```
 
 Processing executables, deadlines, cleanup guarantees, test evidence and limitations: [VIDEO.md](./VIDEO.md).
+
+## Audit and cloud boundary
+
+See [LOCAL_AUDIT.md](./LOCAL_AUDIT.md) for executed tests versus real inference. The local API still has no
+authenticated principal or owner filtering; public visibility does not mean public object access in the
+proposed cloud API. [CLOUD_TRANSITION.md](./CLOUD_TRANSITION.md) describes the future authenticated,
+asynchronous API contract. No Cognito/Firestore/S3 adapter is implemented or deployed by this audit.

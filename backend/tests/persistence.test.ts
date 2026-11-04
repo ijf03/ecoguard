@@ -4,7 +4,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createApp } from '../src/app.js';
-import { createLocalServices } from '../src/local.js';
+import { createLocalServices as compose } from '../src/local.js';
+// These tests isolate metadata/storage; real decoding is exercised in the opt-in tests.
+const createLocalServices = (root: string) => compose(root, { python: '', imageValidator: { validate: async () => {} } });
 import { serve } from './http-helper.js';
 import { MediaService } from '../src/media/service.js';
 import { MemoryRepository } from '../src/database/memory.js';

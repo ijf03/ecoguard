@@ -73,6 +73,11 @@ Executed 30 October 2026: cats image → `cat:2`; dog image → `dog:1`; bus neg
 Each used real Pillow thumbnails, YOLO inference, SQLite persistence and count search. All 19 tests passed,
 zero skipped with the variables above. This small smoke check does not establish accuracy on Australian wildlife.
 Weights and sample images live in ignored `backend/data`; tests never fetch them automatically.
+For a full run that fails on missing dependencies rather than skipping tests, run `npm run test:real` from
+backend. It loads `.env`, accepts TEST_* overrides and checks Python/Pillow/Ultralytics/torch, FFmpeg/ffprobe,
+weights and the three sample files before executing all tests. No downloads occur in that command.
+The 4 November audit required full decoding even when thumbnails are unconfigured; image uploads cannot
+fall back to signature-only validation. See [LOCAL_AUDIT.md](./LOCAL_AUDIT.md).
 
 ## Temporary image queries
 

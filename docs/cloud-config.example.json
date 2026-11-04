@@ -1,0 +1,30 @@
+{
+  "deploymentEnabled": false,
+  "billingAndCreditsVerified": false,
+  "aws": {
+    "accountId": null,
+    "region": null,
+    "deployerProfile": null,
+    "apiRoleArn": null,
+    "processorRoleArn": null,
+    "cognitoUserPoolId": null,
+    "cognitoAppClientId": null,
+    "requiredScopes": [],
+    "callbackUrls": [],
+    "logoutUrls": [],
+    "mediaBucket": null,
+    "modelObjectVersion": null,
+    "modelSha256": null
+  },
+  "gcp": {
+    "projectId": null,
+    "projectNumber": null,
+    "firestoreDatabase": null,
+    "firestoreLocation": null,
+    "workloadIdentityPoolId": null,
+    "workloadIdentityProviderId": null,
+    "serviceAccountEmail": null
+  },
+  "limits": { "imageBytes": 10485760, "videoBytes": 52428800, "videoSeconds": 120 },
+  "note": "Review worksheet only. No credentials, provisioning or deployment behaviour."
+}
