@@ -31,3 +31,26 @@ test('file forms reject empty/unsupported/oversized media and video query images
   assert.throws(() => validateFile(new File(['bytes'], 'file.svg', { type: 'image/svg+xml' })));
   assert.throws(() => validateFile(new File([new Uint8Array(10 * 1024 * 1024 + 1)], 'large.png', { type: 'image/png' })));
 });
+
+test('logout waits for refresh, blocks late cookie writes and permits a later sign-in', async () => {
+  const { createSessionCoordinator } = await import('../src/session-coordinator.ts');
+  const coordinator = createSessionCoordinator();
+  const events = [];
+  let release;
+  const held = new Promise(resolve => { release = resolve; });
+  const refresh = coordinator.run(async () => { events.push('refresh started'); await held; events.push('cookie set'); return 'alice'; });
+  await Promise.resolve(); await Promise.resolve();
+  const logout = coordinator.end(async () => { events.push('cookie cleared'); });
+  const late = coordinator.run(async () => { events.push('must not run'); return 'alice'; });
+  release(); await Promise.all([refresh, logout, late]);
+  assert.deepEqual(events, ['refresh started', 'cookie set', 'cookie cleared']);
+  coordinator.resume();
+  assert.equal(await coordinator.run(async () => 'bob'), 'bob');
+});
+
+test('failed cookie clearing is reported and does not silently complete logout', async () => {
+  const { createSessionCoordinator } = await import('../src/session-coordinator.ts');
+  const coordinator = createSessionCoordinator();
+  await assert.rejects(coordinator.end(async () => { throw new Error('network failure'); }), /network failure/);
+  assert.equal(await coordinator.run(async () => 'still signed in'), 'still signed in');
+});

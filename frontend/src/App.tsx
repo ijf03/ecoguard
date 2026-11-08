@@ -29,7 +29,7 @@ function MediaCard({ item, selected, onSelect, onView, onRetry, busy, onCopy }: 
   const video = item.contentType === 'video/mp4';
   return <article className={`media-card${selected ? ' selected' : ''}`}>
     <div className="card-preview">
-      <label className="select-card"><input type="checkbox" aria-label={`Select ${item.filename}`} checked={selected} disabled={busy} onChange={onSelect} /></label>
+      <label className="select-card"><input type="checkbox" aria-label={`Select ${item.filename}`} checked={selected} disabled={busy || item.canEdit === false} onChange={onSelect} /></label>
       <button className="preview-button" onClick={onView} aria-label={`View ${item.filename}`}>
         {item.thumbnailUrl && !imageError ? <img src={item.thumbnailUrl} alt={item.filename} loading="lazy" onError={() => setImageError(true)} /> : <span className="preview-placeholder"><span aria-hidden="true">{video ? '▷' : '▧'}</span>{video ? 'Video sighting' : imageError ? 'Preview unavailable' : 'Preview pending'}</span>}
       </button>
@@ -40,13 +40,14 @@ function MediaCard({ item, selected, onSelect, onView, onRetry, busy, onCopy }: 
       <div className="tag-list">{Object.entries(item.species).map(([tag, count]) => <span className="tag" key={tag}>{tag} <b>{count}</b></span>)}{item.manualTags.map(tag => <span className="tag manual" key={tag}>{tag}</span>)}</div>
       {!Object.keys(item.species).length && !item.manualTags.length && <p className="hint">{item.processingStatus === 'complete' ? 'No supported animals detected.' : 'Tags not available yet.'}</p>}
       <div className="card-bottom"><span className={`status ${item.processingStatus}`}>{item.processingStatus === 'complete' ? 'Processed' : item.processingStatus === 'failed' ? 'Processing failed' : 'Processing pending'}</span><span>{fileSize(item.size)}</span></div>
-      {item.processingStatus === 'failed' && <><p className="hint processing-error">Automatic animal detection could not finish. The original is saved. Try again when processing is available.</p><button className="text-button" disabled={busy} onClick={onRetry}>↻ Retry processing</button></>}
-      {item.processingStatus === 'pending' && <button className="text-button" disabled={busy} onClick={onRetry}>↻ Process sighting</button>}
+      {item.processingStatus === 'failed' && <><p className="hint processing-error">Automatic animal detection could not finish. The original is saved. Try again when processing is available.</p>{item.canEdit !== false && <button className="text-button" disabled={busy} onClick={onRetry}>↻ Retry processing</button>}</>}
+      {item.processingStatus === 'pending' && item.canEdit !== false && <button className="text-button" disabled={busy} onClick={onRetry}>↻ Process sighting</button>}
+      {item.canEdit === false && <p className="hint">Public sighting · view only</p>}
       {item.thumbnailUrl && <button className="text-button thumbnail-copy" onClick={onCopy}>Copy thumbnail URL</button>}
     </div>
   </article>;
 }
-export default function App() {
+export default function App({ accountName, onSignOut }: { accountName?: string; onSignOut?: () => Promise<void> } = {}) {
   const [page, setPage] = useState<Page>('collection');
   const [items, setItems] = useState<Media[]>([]);
   const [loading, setLoading] = useState(true);
@@ -139,7 +140,8 @@ export default function App() {
     try { await navigator.clipboard.writeText(new URL(item.thumbnailUrl!, window.location.origin).href); setNotice('Thumbnail URL copied. Use it in Explore & search → A thumbnail URL.'); }
     catch { setError('The browser could not copy the URL. You can copy the thumbnail link address directly from the image.'); }
   }
-  const allSelected = items.length > 0 && items.length <= 100 && selected.size === items.length;
+  const editableItems = items.filter(item => item.canEdit !== false);
+  const allSelected = editableItems.length > 0 && editableItems.length <= 100 && selected.size === editableItems.length;
   return <div className="app-shell"><a href="#main" className="skip-link">Skip to content</a>
     <aside className="sidebar"><a className="brand" href="#" onClick={event => { event.preventDefault(); if (!busy) navigate('collection'); }}><span className="brand-mark" aria-hidden="true">❋</span><span>EcoGuard<small>FRIENDS & FOES</small></span></a>
       <div className="sidebar-rule" /><div className="nav-label">YOUR OBSERVATORY</div>
@@ -147,7 +149,7 @@ export default function App() {
       <div className="sidebar-note"><span aria-hidden="true">↗</span><p>Small sightings.<br />A bigger picture.</p><small>For Australia’s wildlife<br />and the pets we call family.</small></div>
       <div className="sidebar-footer">AUSTRALIA · FIELD NOTES</div>
     </aside>
-    <div className="main-shell"><header className="topbar"><span>AUSSIE ECOGUARD</span><span className="topbar-right"><i /> FRIENDS, FOES & EVERYTHING BETWEEN</span></header>
+    <div className="main-shell"><header className="topbar"><span>AUSSIE ECOGUARD</span>{accountName ? <span className="account-controls"><span>{accountName}</span><button className="text-button" disabled={busy} onClick={() => { void onSignOut?.(); }}>Sign out</button></span> : <span className="topbar-right"><i /> FRIENDS, FOES & EVERYTHING BETWEEN</span>}</header>
       <main id="main"><div className="page-heading"><div><div className="eyebrow">THE ECOGUARD OBSERVATORY</div><h1>{titles[page][0]}<em>{titles[page][1]}</em></h1></div><span className="heading-art" aria-hidden="true">❋</span></div>
         {page === 'collection' && <div className="intro-strip"><span className="intro-icon" aria-hidden="true">⌁</span><p>A shared view of our natural world.<br /><strong>Document a sighting. Discover a species. Help a pet find home.</strong></p><button className="button primary" disabled={busy} onClick={() => navigate('upload')}>Add a sighting <span aria-hidden="true">↑</span></button></div>}
         {page === 'upload' && <UploadForm onChanged={load} onBusyChange={setBusy} />}
@@ -159,7 +161,7 @@ export default function App() {
           <div className="section-heading"><div><div className="eyebrow">{page === 'collection' ? 'COLLECTED MOMENTS' : 'SEARCH RESULTS'}</div><h2 id="collection-heading">{page === 'collection' ? 'Your sightings' : resultLabel || 'Matching sightings'}{hasResults && !loading && <span className="count-badge">{items.length}</span>}</h2></div>
             {page === 'collection' && <button className="button secondary" disabled={loading || busy} onClick={() => void load()}>{loading ? 'Loading…' : '↻ Refresh'}</button>}</div>
           {loading || busy && !hasResults ? <div className="empty-state" role="status"><span className="loading-ring" />{loading ? 'Loading your collection…' : 'Searching sightings…'}</div> : hasResults && items.length > 0 ? <>
-            <div className="selection-row"><label><input type="checkbox" disabled={busy || items.length > 100} checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(items.map(item => item.id)))} />Select all{items.length > 100 ? ' (maximum 100 per batch)' : ''}</label><span>{selected.size ? `${selected.size} selected` : 'Select sightings to edit tags or delete'}</span></div>
+            <div className="selection-row"><label><input type="checkbox" disabled={busy || !editableItems.length || editableItems.length > 100} checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(editableItems.map(item => item.id)))} />Select editable{editableItems.length > 100 ? ' (maximum 100 per batch)' : ''}</label><span>{selected.size ? `${selected.size} selected` : 'Select your sightings to edit tags or delete'}</span></div>
             {selected.size > 0 && <div className="bulk-toolbar"><label className="field">Tags for selected sightings<input value={bulkTags} disabled={busy} onChange={event => setBulkTags(event.target.value)} placeholder="e.g. ginger, collar" /></label><button className="button secondary" disabled={busy} onClick={() => void editTags(1)}>Add tags</button><button className="button secondary" disabled={busy} onClick={() => void editTags(0)}>Remove tags</button><button className="button danger" disabled={busy} onClick={() => setDeleteOpen(true)}>Delete selected</button><button className="text-button" disabled={busy} onClick={() => setSelected(new Set())}>Clear selection</button></div>}
             <div className="media-grid">{items.map(item => <MediaCard key={item.id} item={item} selected={selected.has(item.id)} busy={busy || selected.size >= 100 && !selected.has(item.id)} onSelect={() => toggle(item.id)} onView={() => setViewer(item)} onRetry={() => void retry(item)} onCopy={() => void copyThumbnail(item)} />)}</div>
           </> : <div className="empty-state"><span className="empty-symbol" aria-hidden="true">⌕</span><h3>{error ? page === 'collection' ? 'Your collection is unavailable.' : 'The search could not finish.' : !hasResults ? 'Start with a little curiosity.' : page === 'collection' ? 'Your field journal starts here.' : 'No matching sightings yet.'}</h3><p>{error ? 'Check the connection and try again.' : !hasResults ? 'Choose your search above to find matching sightings.' : page === 'collection' ? 'Add a photo or video to begin your collection.' : 'Try fewer tags, lower counts or a different date window.'}</p>{page === 'collection' && !error && <button className="button primary" onClick={() => navigate('upload')}>Add your first sighting ↑</button>}</div>}

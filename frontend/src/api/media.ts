@@ -1,6 +1,7 @@
 /** Public HTTP contract. All media links are same-origin relative paths. */
 export interface Media {
   id: string;
+  canEdit?: boolean;
   filename: string;
   checksum: string;
   contentType: 'image/png' | 'image/jpeg' | 'image/webp' | 'video/mp4';
@@ -69,4 +70,6 @@ export function createMediaApi(send: ApiFetch = (path, options) => fetch(path, o
     delete: (urls: string[]) => post<{ deleted: number; cleanupPending: boolean }>('/api/media/delete', { urls }),
   };
 }
-export const mediaApi = createMediaApi();
+let transport: ApiFetch = (path, options) => fetch(path, options);
+export function setMediaTransport(send: ApiFetch) { transport = send; }
+export const mediaApi = createMediaApi((path, options) => transport(path, options));
