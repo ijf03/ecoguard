@@ -43,7 +43,7 @@ export function createCloudApi({ store, storage, auth, schedule, processingAvail
           species: item.species, manualTags: item.manualTags, detectionModel: item.detectionModel, processingError: item.processingError,
           width: item.width, height: item.height, thumbnailWidth: item.thumbnailWidth, thumbnailHeight: item.thumbnailHeight,
           duration: item.duration, sampledAt: item.sampledAt, canEdit: item.ownerId === ownerId,
-          originalUrl: `/api/media/${item.id}/file`, ...(downloadUrl ? { downloadUrl } : {}),
+          originalUrl: `/api/media/${item.id}/file`, originalAvailable: Boolean(downloadUrl), ...(downloadUrl ? { downloadUrl } : {}),
           ...(item.thumbnailKey ? { thumbnailUrl: `/api/media/${item.id}/thumbnail`, thumbnailDownloadUrl } : {}) };
       };
       if (method === 'GET' && path === '/api/health') return response(200, { status: 'ok', adapter: 'aws-lambda-firestore', uploadMode: 'signed-storage' });

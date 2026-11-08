@@ -1,3 +1,5 @@
+> Subsequent image stage: S3-triggered full image validation and real compressed thumbnails are now deployed and live-tested. See CLOUD_IMAGE_VERIFICATION.md; its explicit current limits supersede the earlier processing boundary below.
+
 # Deployed API/storage stage — 8 November 2026
 
 ## Deployed and observed

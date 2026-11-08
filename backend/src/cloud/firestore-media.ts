@@ -5,7 +5,7 @@ import { ApiError } from '../http/errors.js';
 import { matches } from '../media/search.js';
 import { validateDetection, type Detection } from '../processing/detector.js';
 
-type Phase = 'awaiting-upload' | 'ready' | 'processing' | 'complete' | 'failed' | 'deleting' | 'deleted';
+type Phase = 'awaiting-upload' | 'ready' | 'processing' | 'complete' | 'failed' | 'rejected' | 'deleting' | 'deleted';
 export interface CloudMedia extends Media {
   ownerId: string;
   phase: Phase;
@@ -33,7 +33,7 @@ const hash = (value: string) => createHash('sha256').update(value).digest('hex')
 const missing = () => new ApiError(404, 'MEDIA_NOT_FOUND', 'Media not found.');
 const conflict = (message: string) => new ApiError(409, 'STATE_CONFLICT', message);
 const visible = (item: CloudMedia) => item.phase !== 'deleting' && item.phase !== 'deleted';
-const publiclyReadable = (item: CloudMedia) => item.visibility === 'public' && item.phase !== 'awaiting-upload';
+const publiclyReadable = (item: CloudMedia) => item.visibility === 'public' && !!item.sourceVersion && item.phase !== 'rejected';
 const json = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 /** Server-only metadata boundary. IAM authenticates the workload; callers supply only verified Cognito subjects. */
@@ -178,8 +178,8 @@ export class FirestoreMediaStore {
       const ref = this.media(id);
       const item = (await tx.get(ref)).data() as CloudMedia | undefined;
       if (!item || !visible(item) || item.ownerId !== ownerId) throw missing();
-      if (!item.sourceVersion || item.phase === 'processing' && item.lease && item.lease.until > this.now()) throw conflict('Upload is incomplete or processing is still active.');
-      const next: CloudMedia = { ...item, phase: 'ready', processingStatus: 'pending', species: {}, generation: item.generation + 1, revision: item.revision + 1 };
+      if ((!item.sourceVersion && !(item.phase === 'failed' && item.processingError === 'PROCESSOR_UNAVAILABLE')) || item.phase === 'processing' && item.lease && item.lease.until > this.now()) throw conflict('Upload is incomplete, invalid, or processing is still active.');
+      const next: CloudMedia = { ...item, phase: item.sourceVersion ? 'ready' : 'awaiting-upload', processingStatus: 'pending', species: {}, generation: item.generation + 1, revision: item.revision + 1 };
       delete next.lease; delete next.processingError; delete next.detectionModel;
       tx.set(ref, next);
       return next;
@@ -235,6 +235,38 @@ export class FirestoreMediaStore {
       tx.set(ref, { ...item, phase: 'deleted', revision: item.revision + 1 });
       if (pointer.exists && pointer.get('mediaId') === id) tx.delete(reservation);
       return true;
+    });
+  }
+  /** Trusted IAM-only worker access. Never expose this as a user-facing route. */
+  async readForWorker(id: string): Promise<CloudMedia | undefined> {
+    return (await this.media(id).get()).data() as CloudMedia | undefined;
+  }
+  async rejectUpload(id: string): Promise<void> {
+    await this.db.runTransaction(async tx => {
+      const ref = this.media(id);
+      const item = (await tx.get(ref)).data() as CloudMedia | undefined;
+      if (!item || item.phase !== 'awaiting-upload') return;
+      tx.set(ref, { ...item, phase: 'rejected', processingStatus: 'failed', processingError: 'INVALID_MEDIA', revision: item.revision + 1 });
+    });
+  }
+  async attachThumbnail(id: string, sourceVersion: string, thumbnail: { key: string; width: number; height: number; originalWidth: number; originalHeight: number }): Promise<boolean> {
+    if (!thumbnail.key.startsWith(`thumbnails/${id}/`) || [thumbnail.width, thumbnail.height, thumbnail.originalWidth, thumbnail.originalHeight].some(n => !Number.isSafeInteger(n) || n < 1)) throw new Error('Invalid thumbnail metadata.');
+    return this.db.runTransaction(async tx => {
+      const ref = this.media(id);
+      const item = (await tx.get(ref)).data() as CloudMedia | undefined;
+      if (!item || !visible(item) || item.sourceVersion !== sourceVersion) return false;
+      if (item.thumbnailKey === thumbnail.key) return true;
+      tx.set(ref, { ...item, thumbnailKey: thumbnail.key, thumbnailWidth: thumbnail.width, thumbnailHeight: thumbnail.height,
+        width: thumbnail.originalWidth, height: thumbnail.originalHeight, revision: item.revision + 1 });
+      return true;
+    });
+  }
+  async markProcessorUnavailable(id: string): Promise<void> {
+    await this.db.runTransaction(async tx => {
+      const ref = this.media(id);
+      const item = (await tx.get(ref)).data() as CloudMedia | undefined;
+      if (!item || !['ready', 'awaiting-upload'].includes(item.phase)) return;
+      tx.set(ref, { ...item, phase: 'failed', processingStatus: 'failed', processingError: 'PROCESSOR_UNAVAILABLE', revision: item.revision + 1 });
     });
   }
   async list(ownerId: string): Promise<CloudMedia[]> {

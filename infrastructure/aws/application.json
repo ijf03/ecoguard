@@ -11,6 +11,9 @@
     "FrontendOrigin": {
       "Type": "String",
       "Default": "http://127.0.0.1:5173"
+    },
+    "ThumbnailArtifactKey": {
+      "Type": "String"
     }
   },
   "Resources": {
@@ -89,8 +92,34 @@
             "Key": "Project",
             "Value": "AussieEcoGuardG80"
           }
-        ]
-      }
+        ],
+        "NotificationConfiguration": {
+          "LambdaConfigurations": [
+            {
+              "Event": "s3:ObjectCreated:*",
+              "Function": {
+                "Fn::GetAtt": [
+                  "ProcessorFunction",
+                  "Arn"
+                ]
+              },
+              "Filter": {
+                "S3Key": {
+                  "Rules": [
+                    {
+                      "Name": "prefix",
+                      "Value": "incoming/"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "DependsOn": [
+        "ProcessorInvokePermission"
+      ]
     },
     "MediaBucketPolicy": {
       "Type": "AWS::S3::BucketPolicy",
@@ -164,6 +193,9 @@
             "ECOGUARD_CLIENT_ID": "43n2ru3iuds0ph59ldme1adv5l",
             "ECOGUARD_FRONTEND_ORIGIN": {
               "Ref": "FrontendOrigin"
+            },
+            "ECOGUARD_PROCESSOR_FUNCTION": {
+              "Ref": "ProcessorFunction"
             }
           }
         },
@@ -331,6 +363,145 @@
           ]
         }
       }
+    },
+    "ThumbnailLogs": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/ecoguard-g80-thumbnail",
+        "RetentionInDays": 14
+      }
+    },
+    "ProcessorLogs": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/ecoguard-g80-processor",
+        "RetentionInDays": 14
+      }
+    },
+    "ThumbnailFunction": {
+      "Type": "AWS::Lambda::Function",
+      "DependsOn": "ThumbnailLogs",
+      "Properties": {
+        "FunctionName": "ecoguard-g80-thumbnail",
+        "Runtime": "python3.12",
+        "Handler": "cloud_thumbnail.handler",
+        "Role": {
+          "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+        },
+        "MemorySize": 1024,
+        "Timeout": 60,
+        "Code": {
+          "S3Bucket": {
+            "Ref": "ArtifactBucket"
+          },
+          "S3Key": {
+            "Ref": "ThumbnailArtifactKey"
+          }
+        },
+        "Environment": {
+          "Variables": {
+            "ECOGUARD_MEDIA_BUCKET": {
+              "Fn::Sub": "ecoguard-g80-media-${AWS::AccountId}-${AWS::Region}"
+            }
+          }
+        },
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "AussieEcoGuardG80"
+          }
+        ]
+      }
+    },
+    "ProcessorFunction": {
+      "Type": "AWS::Lambda::Function",
+      "DependsOn": "ProcessorLogs",
+      "Properties": {
+        "FunctionName": "ecoguard-g80-processor",
+        "Runtime": "nodejs22.x",
+        "Handler": "dist/cloud/processor-handler.handler",
+        "Role": {
+          "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+        },
+        "MemorySize": 512,
+        "Timeout": 180,
+        "Code": {
+          "S3Bucket": {
+            "Ref": "ArtifactBucket"
+          },
+          "S3Key": {
+            "Ref": "ArtifactKey"
+          }
+        },
+        "Environment": {
+          "Variables": {
+            "ECOGUARD_GCP_PROJECT": "fit3184-g80-ecoguard-dg26",
+            "ECOGUARD_MEDIA_BUCKET": {
+              "Fn::Sub": "ecoguard-g80-media-${AWS::AccountId}-${AWS::Region}"
+            },
+            "ECOGUARD_IMAGE_VALIDATOR_FUNCTION": {
+              "Ref": "ThumbnailFunction"
+            }
+          }
+        },
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "AussieEcoGuardG80"
+          }
+        ]
+      }
+    },
+    "ProcessorInvokePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "ProcessorFunction"
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "s3.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:aws:s3:::ecoguard-g80-media-${AWS::AccountId}-${AWS::Region}"
+        }
+      }
+    },
+    "WorkerFailureQueue": {
+      "Type": "AWS::SQS::Queue",
+      "Properties": {
+        "QueueName": "ecoguard-g80-processing-failures",
+        "SqsManagedSseEnabled": true,
+        "MessageRetentionPeriod": 1209600,
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "AussieEcoGuardG80"
+          }
+        ]
+      }
+    },
+    "ProcessorAsyncConfig": {
+      "Type": "AWS::Lambda::EventInvokeConfig",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "ProcessorFunction"
+        },
+        "Qualifier": "$LATEST",
+        "MaximumRetryAttempts": 2,
+        "MaximumEventAgeInSeconds": 3600,
+        "DestinationConfig": {
+          "OnFailure": {
+            "Destination": {
+              "Fn::GetAtt": [
+                "WorkerFailureQueue",
+                "Arn"
+              ]
+            }
+          }
+        }
+      }
     }
   },
   "Outputs": {
@@ -350,6 +521,16 @@
     "ApiFunction": {
       "Value": {
         "Ref": "ApiFunction"
+      }
+    },
+    "ProcessorFunction": {
+      "Value": {
+        "Ref": "ProcessorFunction"
+      }
+    },
+    "FailureQueue": {
+      "Value": {
+        "Ref": "WorkerFailureQueue"
       }
     }
   }
