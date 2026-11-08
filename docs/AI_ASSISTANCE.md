@@ -21,3 +21,5 @@ The student must review and understand the code, validate the completed system, 
 Codex also implemented the separate Firestore transactional metadata adapter and its eight emulator integration tests, including concurrency, leases, tombstones and committed outbox records. This stage does not claim live cross-cloud deployment, email delivery or real ML inference.
 
 Codex provisioned the dedicated free-tier Firestore database and restricted GCP federation configuration using the authorized project, implemented a reproducible live metadata smoke test and an undeployed Lambda federation probe, and prepared production dependency packaging. Local gcloud-user metadata verification passed; AWS federation is not claimed until a real Lambda test succeeds.
+
+Codex implemented the optional browser signed-upload client, preserving canonical media identifiers and separating Cognito API authorization from direct S3 requests. A synthetic transport test verifies hashing, duplicate handling and absence of Cognito credentials on storage requests.

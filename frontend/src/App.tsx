@@ -31,7 +31,7 @@ function MediaCard({ item, selected, onSelect, onView, onRetry, busy, onCopy }: 
     <div className="card-preview">
       <label className="select-card"><input type="checkbox" aria-label={`Select ${item.filename}`} checked={selected} disabled={busy || item.canEdit === false} onChange={onSelect} /></label>
       <button className="preview-button" onClick={onView} aria-label={`View ${item.filename}`}>
-        {item.thumbnailUrl && !imageError ? <img src={item.thumbnailUrl} alt={item.filename} loading="lazy" onError={() => setImageError(true)} /> : <span className="preview-placeholder"><span aria-hidden="true">{video ? '▷' : '▧'}</span>{video ? 'Video sighting' : imageError ? 'Preview unavailable' : 'Preview pending'}</span>}
+        {item.thumbnailUrl && !imageError ? <img src={item.thumbnailDownloadUrl ?? item.thumbnailUrl} alt={item.filename} loading="lazy" onError={() => setImageError(true)} /> : <span className="preview-placeholder"><span aria-hidden="true">{video ? '▷' : '▧'}</span>{video ? 'Video sighting' : imageError ? 'Preview unavailable' : 'Preview pending'}</span>}
       </button>
       <span className="media-kind">{video ? 'VIDEO' : 'PHOTO'}</span>
     </div>
