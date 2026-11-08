@@ -144,7 +144,7 @@ test('search crosses multiple Firestore pages, applies full AND counts, deduplic
     const id = randomUUID();
     batch.set(db.collection(`${namespace}_media`).doc(id), {
       ...base, id, ownerId: i === 104 ? 'bob' : 'alice', visibility: 'public',
-      phase: i === 103 ? 'deleting' : 'complete', processingStatus: 'complete',
+      phase: i === 103 ? 'deleting' : 'complete', processingStatus: 'complete', sourceVersion: 'fixture-version',
       createdAt: i === 102 ? '2020-01-01T00:00:00.000Z' : '2026-11-08T00:00:00.000Z',
       species: { cat: 2, dog: i === 101 ? 1 : 3 }, manualTags: ['ginger'],
     });

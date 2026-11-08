@@ -17,6 +17,7 @@ export interface Media {
   detectionModel?: { identity: string; version: string; weightsSha256: string; confidence: number };
   processingError?: string;
   originalUrl: string;
+  originalAvailable?: boolean;
   thumbnailUrl?: string;
   downloadUrl?: string;
   thumbnailDownloadUrl?: string;
