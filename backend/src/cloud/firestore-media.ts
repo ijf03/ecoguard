@@ -237,6 +237,18 @@ export class FirestoreMediaStore {
       return true;
     });
   }
+  async list(ownerId: string): Promise<CloudMedia[]> {
+    this.owner(ownerId);
+    const found: CloudMedia[] = [];
+    let cursor: string | undefined;
+    do {
+      const query = this.collection('media').where('ownerId', '==', ownerId).orderBy(FieldPath.documentId()).limit(100);
+      const page = await (cursor ? query.startAfter(cursor) : query).get();
+      found.push(...page.docs.map(s => s.data() as CloudMedia).filter(visible));
+      cursor = page.size === 100 ? page.docs.at(-1)!.id : undefined;
+    } while (cursor);
+    return found.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id));
+  }
   /** Fetch all pages, then apply complete AND/count predicates; never silently truncate search matches. */
   async search(ownerId: string, tags: Record<string, number>, window?: { since: string; until: string }): Promise<CloudMedia[]> {
     this.owner(ownerId);

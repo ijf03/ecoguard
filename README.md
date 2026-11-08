@@ -71,8 +71,8 @@ When configured, Cognito access tokens protect API/media access and enforce per-
 Without both Cognito IDs the local development API is unauthenticated. Keep it loopback-only.
 NODE_ENV=production is rejected. Cloud integration must add S3 events, serverless processors,
 least-privilege roles and secure secondary-cloud access. Do not deploy the local server.
-A real Cognito user pool/client and a separate, unbilled GCP project have been created.
-See docs/ASSESSMENT_CLARIFICATIONS.md for verified cloud state; there is no deployed media application yet.
+Cognito, an authenticated API Gateway/Lambda metadata API, private S3 storage and a separate unbilled GCP Firestore database are deployed. AWS-to-GCP federation has been verified.
+See docs/ASSESSMENT_CLARIFICATIONS.md for verified cloud state; cloud media processing, chatbot, notifications and final hosting remain unfinished. See docs/CLOUD_API_VERIFICATION.md for deployed versus pending behaviour.
 The [cloud transition proposal](docs/CLOUD_TRANSITION.md) maps existing adapters to AWS/GCP and records
 ownership/idempotence requirements, account prerequisites and the next iteration. It is not deployed configuration.
 

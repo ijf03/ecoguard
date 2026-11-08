@@ -38,7 +38,7 @@ The SDK is pinned to `@google-cloud/firestore@9.4.0`. A `rimraf@6.1.4` transitiv
 
 ## Still required before cloud completion
 
-- Verify the configured AWS-role-to-GCP federation inside Lambda. The database and GCP IAM configuration now exist (see live setup below); a local-user database check does not prove AWS exchange.
+- Federation was subsequently verified inside the real Lambda probe; complete image/video processing and query workflows remain outstanding (see CLOUD_API_VERIFICATION.md).
 - Add API Gateway/Lambda adapters, signed S3 uploads with expected checksums/length/type, private versioned storage, source-byte validation, event triggers and packaged inference/thumbnail/video workers.
 - Add transient retry/backoff/DLQ handling. The store fences attempts; it does not schedule work or provide a failure queue.
 - Implement physical deletion/reconciliation, including every object version and late worker artifacts. Use lifecycle/repeated cleanup for late writes; `finishDelete` is not proof bytes were removed.
@@ -66,7 +66,7 @@ npm run test:cloud:live
 
 `infrastructure/gcp/bootstrap.sh` records reproducible database/API/IAM setup. Its project ID and number are fixed to EcoGuard; it requires the verified AWS account ID. The pool provider accepts only that account's `LabRole` assumed-role ARN prefix. The GCP runtime service account receives Firestore data access and only that federated role can impersonate it. The generated `backend/config/aws-wif.json` contains public configuration, not a service-account key or AWS credentials.
 
-`cloud/federation-probe.ts` is prepared for a direct IAM-authorized Lambda invocation, not a public endpoint. It uses the explicit external-account config, performs a synthetic metadata round trip/concurrent reservation and cleans up its unique probe collections. It rejects execution outside Lambda. It has not yet been deployed or invoked; cloud identity is pending the authenticated AWS CLI connection.
+`cloud/federation-probe.ts` is prepared for a direct IAM-authorized Lambda invocation, not a public endpoint. It uses the explicit external-account config, performs a synthetic metadata round trip/concurrent reservation and cleans up its unique probe collections. It rejects execution outside Lambda. It was subsequently deployed and successfully invoked from the verified Academy account. AWS-to-GCP exchange and metadata round trip passed; see CLOUD_API_VERIFICATION.md.
 
 Package runtime JS, public WIF config and production dependencies with npm 9+ (npm 11 verified):
 

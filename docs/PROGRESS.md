@@ -1,3 +1,5 @@
+> Deployed stage update: API Gateway/Lambda, private versioned S3, keyless AWS-to-GCP federation and Firestore metadata access are verified. Nine cloud/emulator tests and live storage/federation checks pass; cloud processing/bot/notifications are not complete. See CLOUD_API_VERIFICATION.md.
+
 > Current status (8 November 2026): the sections below are historical iteration records, not current deployment claims. See [FRONTEND_VERIFICATION.md](FRONTEND_VERIFICATION.md) for current tests/browser evidence and [ASSESSMENT_CLARIFICATIONS.md](ASSESSMENT_CLARIFICATIONS.md) for cloud state. Connected frontend workflows and real Cognito authentication/ownership are now implemented. The separate Firestore transactional adapter now has eight passing emulator integration tests (see FIRESTORE_VERIFICATION.md). Serverless media deployment, Dialogflow, notifications and complete real-inference/deployed verification remain outstanding.
 
 # Audit and implementation log - 29 October 2026
