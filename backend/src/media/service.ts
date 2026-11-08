@@ -32,7 +32,10 @@ export class MediaService {
       await this.imageValidator.validate(bytes);
       const result = validateDetection(await this.detector.detect(bytes));
       if (!Object.keys(result.species).length) return [];
-      const items = await this.search(result.species, lostPet?.since, lostPet?.until);
+      // Image queries match the detected species set (spec 4.3), not the
+      // number of animals in the example. Explicit count queries use search().
+      const tags = Object.fromEntries(Object.keys(result.species).map(name => [name, 1]));
+      const items = await this.search(tags, lostPet?.since, lostPet?.until);
       return lostPet ? items.filter(item => lostPet.tags.every(tag => item.manualTags.includes(tag))) : items;
     });
     this.pending = work.catch(() => undefined);

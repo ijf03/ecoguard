@@ -72,8 +72,9 @@ No fox, cane-toad, breed or colour inference. See [DETECTION.md](./DETECTION.md)
 ## Temporary image query
 
 POST /api/search/image with raw JPEG/PNG/WebP bytes and matching Content-Type (10 MiB maximum).
-Returns {media:[]} using the same metadata representation as text search. Detected instance counts are
-minimum thresholds, combined with AND across all detected animal classes. No animals means no matches.
+Returns {media:[]} using the same metadata representation as text search. Each detected species must
+occur at least once in a match, combined with AND. Query-image instance counts are not minimum
+thresholds; explicit count constraints belong to POST /api/search. No animals means no matches.
 Requires configured Pillow validation and YOLO; unavailable processing returns a structured error.
 The query is decoded and inferred in memory, never stored/indexed and never thumbnailed.
 Typed client: mediaApi.searchImage(file). This general local search has no ownership enforcement.
@@ -82,7 +83,7 @@ Typed client: mediaApi.searchImage(file). This general local search has no owner
 
 POST /api/search/lost-pet/image?tag=ginger&tag=collar&since=2026-10-01T00:00:00Z&until=2026-10-30T00:00:00Z
 with raw image bytes and matching Content-Type. Same 10 MiB/decoding safeguards and {media:[]} response.
-Detected counts use AND/minimum thresholds. Optional repeated tag parameters must all occur in manualTags
+Detected species use AND with at least one occurrence each. Optional repeated tag parameters must all occur in manualTags
 (maximum 31 descriptive tags). These descriptions are supplied by users, not inferred breed or colour.
 Only public records with createdAt inclusively between since and until can match. Both lost-pet endpoints
 accept valid UTC ISO timestamps ending in Z; default since is now minus 30 days and until is now.

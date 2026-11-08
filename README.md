@@ -74,7 +74,8 @@ Both members should own, understand and commit their contributions. Record AI as
 ## Additional local workflows
 
 `POST /api/search/image` accepts a temporary query image without storage. `POST /api/search/lost-pet/image`
-adds public/date/manual-tag filters. Query counts use AND/minimum thresholds; no animals returns no matches.
+adds public/date/manual-tag filters. Image queries match all detected species regardless of example counts;
+explicit tag/count queries use AND/minimum thresholds. No animals returns no matches.
 `POST /api/media` also accepts MP4/H.264 videos (50 MiB default, 120 seconds maximum).
 Samples at 0, 10, 20... seconds use maximum observed species counts, not unique-animal counts.
 Original URLs support GET/HEAD and single HTTP byte ranges. Retry uses the existing process endpoint.

@@ -83,7 +83,8 @@ fall back to signature-only validation. See [LOCAL_AUDIT.md](./LOCAL_AUDIT.md).
 
 /api/search/image reuses YOLO after validation-only Pillow decode (including pixel/decompression limits).
 It uses no temporary files, creates no thumbnail and writes no metadata or originals.
-Detected query counts are AND/minimum thresholds, not similarity scores. An empty detection returns [].
+Detected species are combined with AND, requiring at least one of each in a match regardless of query-image counts.
+This is species-set matching, not individual-pet similarity. An empty detection returns [].
 Lost-pet image queries reuse this pipeline, filter public sightings by date and AND user-supplied manual descriptions. No breed or colour inference is added.
 
 ## Video reuse

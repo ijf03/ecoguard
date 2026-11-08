@@ -10,7 +10,7 @@ import { createApp } from '../src/app.js';
 import { serve } from './http-helper.js';
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aO2kAAAAASUVORK5CYII=', 'base64');
-test('mock temporary query: AND/minimum counts, no detections, validation/failure and zero permanent writes', async t => {
+test('mock temporary query: species-set AND regardless of query counts, no detections, validation/failure and zero permanent writes', async t => {
   const root = await mkdtemp(join(tmpdir(), 'ecoguard-query-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const repo = new MemoryRepository();
@@ -27,7 +27,8 @@ test('mock temporary query: AND/minimum counts, no detections, validation/failur
   const call = await serve(t, createApp({ media: service, maxUploadBytes: 200 }));
   const query = () => call('/api/search/image', 'POST', png, { 'Content-Type': 'image/png' });
   assert.equal((await query()).json.media[0].id, item.id);
-  species = { cat: 3 }; assert.deepEqual((await query()).json.media, []);
+  species = { cat: 3, dog: 2 }; assert.equal((await query()).json.media[0].id, item.id);
+  species = { cat: 3 }; assert.equal((await query()).json.media[0].id, item.id);
   species = { cat: 1, horse: 1 }; assert.deepEqual((await query()).json.media, []);
   species = {}; assert.deepEqual((await query()).json.media, []);
   invalid = true; assert.equal((await query()).status, 500); invalid = false;
@@ -52,7 +53,7 @@ test('mock lost-pet image: public only, inclusive date window and AND descriptiv
     ['4', 'public', '2026-10-10T00:00:00.000Z', ['ginger']],
     ['5', 'public', '2026-10-20T00:00:00.000Z', ['ginger', 'collar']],
   ] as const) await repo.save({ ...base, id: suffix.padStart(36, '0'), visibility, createdAt, manualTags: [...manualTags], species: { cat: 2 } });
-  let species: Record<string, number> = { cat: 1 };
+  let species: Record<string, number> = { cat: 3 };
   const service = new MediaService(repo, storage, undefined, { detect: async () => ({ species, model: { identity: 'mock', version: '1', weightsSha256: 'a'.repeat(64), confidence: 0.25 } }) }, { validate: async () => {} });
   const call = await serve(t, createApp({ media: service }));
   const query = (suffix: string) => call('/api/search/lost-pet/image?' + suffix, 'POST', png, { 'Content-Type': 'image/png' });
