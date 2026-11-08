@@ -9,7 +9,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "test": "tsx --test tests/*.test.ts",
-    "test:real": "node scripts/test-real.mjs"
+    "test:real": "node scripts/test-real.mjs",
+    "test:cloud": "tsx --test tests/cloud/*.test.ts"
   },
   "keywords": [],
   "author": "",
@@ -23,6 +24,10 @@
   "type": "module",
   "private": true,
   "dependencies": {
+    "@google-cloud/firestore": "9.4.0",
     "jose": "6.2.15"
+  },
+  "overrides": {
+    "rimraf": "6.1.4"
   }
 }

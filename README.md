@@ -61,6 +61,9 @@ The new restart audit also executes real TCP requests across two separate Node p
 `npm run test:real` loads local processing configuration and checks dependencies/fixtures before running
 the complete suite; missing prerequisites fail instead of silently skipping. See [latest audit](docs/LOCAL_AUDIT.md).
 
+See [Firestore stage verification](docs/FIRESTORE_VERIFICATION.md) for the separate cloud metadata adapter and emulator checks.
+It is not yet wired into a deployed API. Install dependencies using npm 8.3+ (npm 11 verified) to honor security overrides.
+
 ## Deployment boundary
 
 The Node server, SQLite and local filesystem are development adapters, not the production architecture.

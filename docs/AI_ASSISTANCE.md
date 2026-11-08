@@ -17,3 +17,5 @@ backend type checks/build and pinned frontend build/lint passed. Registration/si
 all cloud components or every authentication recovery flow have been deployed/tested.
 
 The student must review and understand the code, validate the completed system, accurately record human contributions and adapt this acknowledgement to the required report format. Each member's personal reflection should describe their own actual experience; it has not been fabricated here.
+
+Codex also implemented the separate Firestore transactional metadata adapter and its eight emulator integration tests, including concurrency, leases, tombstones and committed outbox records. This stage does not claim live cross-cloud deployment, email delivery or real ML inference.
