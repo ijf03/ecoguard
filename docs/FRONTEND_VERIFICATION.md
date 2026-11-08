@@ -2,15 +2,19 @@
 
 ## Implemented
 
-Connected the React application to the existing typed client: batch image/video upload and visibility, collection previews, original viewing and native video controls, processing status/retry, AND/count searches, temporary-image queries, thumbnail URL lookup, text/image lost-pet forms, bulk selection/tag editing and confirmed deletion. Added responsive layouts, labelled controls, status/error feedback and empty states. No chatbot, email or authentication simulation was added.
+Connected the React application to the existing typed client: batch image/video upload and visibility, collection previews, original viewing and native video controls, processing status/retry, AND/count searches, temporary-image queries, thumbnail URL lookup, text/image lost-pet forms, bulk selection/tag editing and confirmed deletion. Added responsive layouts, labelled controls, status/error feedback and empty states. Real Cognito authentication was subsequently added; no chatbot, email or inference simulation was added.
 
-## Executed checks
+## Current executed checks
 
-- Four form-boundary tests passed with no failures or skips. They cover normalized filters, duplicate keys and invalid counts, tag validation, date windows/UTC conversion and file limits/type checks.
-- TypeScript checking passed with a separately installed JavaScript TypeScript 5.9.3 compiler during development. This is supplemental evidence; it does not replace the project's pinned TypeScript 7/Vite build.
-- The first oxlint run completed with no errors and four warnings. The flagged control-character regexes and synchronous initial-effect/cleanup pattern were subsequently rewritten. Final pinned lint/build verification remains outstanding due stalled native tool execution.
-- An independent, temporary Rollup/TypeScript verification bundle rendered the current React source against the real local API. It is a browser testing aid outside the repository, not a changed project toolchain or a verified production build. The utility-class preflight import was excluded from that temporary bundle; all application CSS was included.
-- `git diff --check` passed before the final documentation update.
+After moving development to a local directory outside iCloud-backed storage:
+
+- Backend: 30 tests, 27 passed, zero failed, three real-processing tests skipped because their external prerequisites are not configured. Source/test type checks and backend build passed.
+- Frontend: six tests passed, zero failures/skips. These include form boundaries and refresh/sign-out ordering with failed cookie-clear recovery.
+- The project's pinned TypeScript 7.0.2 / Vite 8.3.5 production build passed; pinned lint passed.
+- Backend authorization checks use locally signed JWTs and real HTTP requests: invalid claims/signatures, two owners, scoped deduplication, private media cookies, public read-only access, mutation-batch authorization and legacy SQLite migration. These are not additional real Cognito accounts or real inference.
+- Student-driven registration, emailed confirmation and real Cognito sign-in reached the protected collection showing the student's name and zero owned sightings. This also exercised real backend access-token verification and session synchronization. Live logout/recovery/temporary-password changes remain unverified.
+
+Earlier native tool runs stalled on iCloud-offloaded dependencies. A temporary Rollup bundle was used for the earlier browser checks below; the later successful pinned build supersedes that build limitation.
 
 ## Browser checks against the real local backend
 
@@ -35,9 +39,8 @@ Used two locally generated, clearly labelled synthetic PNGs, one public and one 
 
 ## Still required
 
-- Complete the normal pinned TypeScript 7 / Vite production build and final lint after resolving native tool startup. Several native commands stalled; one native compiler exited 137. No successful current pinned build is claimed.
 - Actual YOLO image-query success, real MP4/H.264 playback and processing, moving-wildlife accuracy, network-failure cases and all complete deployed browser workflows.
-- Cognito registration/verification/login/logout, protected pages/APIs/media, ownership, asynchronous cloud-upload contract, Lex and notification subscription UI.
+- Live sign-out, password recovery/temporary-password flows, a second real-user ownership check, authenticated upload/media browser checks, asynchronous cloud uploads, Dialogflow and notification subscriptions.
 - Review accessible contrast/focus/keyboard behaviour across all states and supported browsers before calling the UI HD-ready.
 
-The local server stays loopback-only. No cloud resources were provisioned and no code was pushed during these checks. Earlier 27-pass backend inference evidence remains historical and should not be presented as a new local run.
+The local server stays loopback-only. A real Cognito pool/client exists; the media backend is not deployed. Earlier teammate 27-pass/no-skip inference evidence remains historical and must not be presented as the current run. See ASSESSMENT_CLARIFICATIONS.md for the separate GCP project and deployment state.

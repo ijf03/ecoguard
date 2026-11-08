@@ -17,12 +17,12 @@ Preserve these references in the team report/demo notes so the architecture's di
 
 - AWS Academy Learner Lab session is running, with a displayed budget of $50 and $0 used at the time checked. Budget displays may lag usage.
 - The current Learner Lab documentation restricts services to `us-east-1` / `us-west-2`, limits IAM role creation, and provides `LabRole` for service execution. These limits must shape the deployed design.
-- Cognito's user-pool list loaded in `us-east-1` with zero pools and no listing error. Creation, app-client configuration, email verification and temporary-password flows remain unverified.
+- Created Cognito pool `us-east-1_HUV4NQ98r` and public SPA client `43n2ru3iuds0ph59ldme1adv5l` in `us-east-1` after student approval. Email sign-in, required email/first/last names and self-registration are enabled. The student completed real registration, email confirmation and sign-in; the protected collection displayed their name. Temporary-password changes, password recovery and live sign-out have not yet been exercised.
 - The current Learner Lab identity was explicitly denied `lex:ListBots`, `lex:ListImports` and `lex:ListExports`. This is a limitation of this lab identity, not proof that Lex is unavailable in all Academy courses/accounts.
-- GCP CLI authentication was refreshed by the student. An open education billing account is visible. Remaining promotional credit has not yet been independently confirmed.
+- GCP CLI authentication was refreshed by the student. An open education billing account is visible. The billing Credits table showed $48.93 available from the FIT3184 credit, expiring 7 August 2027 (displayed amounts may lag usage).
 - Created separate GCP project `fit3184-g80-ecoguard-dg26`, display name `Aussie EcoGuard FIT3184 G80`, project number `342766879838`. Verified ACTIVE and billing disabled. Only the default Cloud APIs setup associated with project creation ran. No Dialogflow agent, database, compute workload or paid deployment has been created.
 - SmartPark is a separate assignment. Its project/resources were not used or changed for EcoGuard. Commands for EcoGuard must specify the new project explicitly; the user's existing CLI default was preserved.
 
 ## Remaining deployment gates
 
-Confirm remaining education credit and allowed service/edition; verify Cognito creation permissions; configure least-privilege execution and cross-cloud authentication; create the real chatbot and deploy the required backend/storage/database/notification components. The existing CLOUD_TRANSITION document describes an earlier proposal and is not a deployed architecture. Reconcile the final diagram and reports with the services actually implemented.
+Verify the selected GCP service/edition and billing before provisioning; configure least-privilege execution and cross-cloud authentication; create the real chatbot and deploy the required backend/storage/database/notification components. The existing CLOUD_TRANSITION document describes an earlier proposal and is not a deployed architecture. Reconcile the final diagram and reports with the services actually implemented.
