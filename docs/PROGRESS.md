@@ -1,3 +1,5 @@
+> Current status (8 November 2026): the sections below are historical iteration records, not current deployment claims. See [FRONTEND_VERIFICATION.md](FRONTEND_VERIFICATION.md) for current tests/browser evidence and [ASSESSMENT_CLARIFICATIONS.md](ASSESSMENT_CLARIFICATIONS.md) for cloud state. Connected frontend workflows and real Cognito authentication/ownership are now implemented. Serverless media deployment, Dialogflow, notifications and complete real-inference/deployed verification remain outstanding.
+
 # Audit and implementation log - 29 October 2026
 
 ## Initial audit
