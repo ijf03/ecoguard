@@ -61,6 +61,9 @@ The new restart audit also executes real TCP requests across two separate Node p
 `npm run test:real` loads local processing configuration and checks dependencies/fixtures before running
 the complete suite; missing prerequisites fail instead of silently skipping. See [latest audit](docs/LOCAL_AUDIT.md).
 
+See [Firestore stage verification](docs/FIRESTORE_VERIFICATION.md) for the separate cloud metadata adapter and emulator checks.
+It is not yet wired into a deployed API. Install dependencies using npm 8.3+ (npm 11 verified) to honor security overrides.
+
 ## Deployment boundary
 
 The Node server, SQLite and local filesystem are development adapters, not the production architecture.
@@ -68,8 +71,8 @@ When configured, Cognito access tokens protect API/media access and enforce per-
 Without both Cognito IDs the local development API is unauthenticated. Keep it loopback-only.
 NODE_ENV=production is rejected. Cloud integration must add S3 events, serverless processors,
 least-privilege roles and secure secondary-cloud access. Do not deploy the local server.
-A real Cognito user pool/client and a separate, unbilled GCP project have been created.
-See docs/ASSESSMENT_CLARIFICATIONS.md for verified cloud state; there is no deployed media application yet.
+Cognito, an authenticated API Gateway/Lambda metadata API, private S3 storage and a separate unbilled GCP Firestore database are deployed. AWS-to-GCP federation has been verified.
+See docs/ASSESSMENT_CLARIFICATIONS.md for verified cloud state; cloud media processing, chatbot, notifications and final hosting remain unfinished. See docs/CLOUD_API_VERIFICATION.md for deployed versus pending behaviour.
 The [cloud transition proposal](docs/CLOUD_TRANSITION.md) maps existing adapters to AWS/GCP and records
 ownership/idempotence requirements, account prerequisites and the next iteration. It is not deployed configuration.
 

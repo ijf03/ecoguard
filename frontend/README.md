@@ -37,3 +37,9 @@ An explicit `VITE_LOCAL_DEV=true` bypass is available only in Vite development m
 This frontend uses an authenticated local API when both backend Cognito IDs are configured.
 The collection is owner-scoped; public search results from other users are read-only.
 Serverless owner-aware uploads, Dialogflow chat and email-subscription controls remain required. Do not publish this application against an unauthenticated backend or describe the missing services as implemented. Real browser success paths for inferred image queries/video processing require configured processing dependencies. No fake chatbot, notification or inference responses are used.
+
+## Signed cloud upload adapter
+
+`VITE_CLOUD_UPLOADS=true` opts into the separate cloud contract: hash the file in the browser, reserve `/api/uploads`, PUT bytes to the narrowly signed S3 URL with checksum/overwrite preconditions, then confirm storage. Cognito headers are attached only to same-origin API requests, never the storage fetch. Canonical original/thumbnail URLs remain identifiers for bulk/lookup requests; temporary `downloadUrl`/`thumbnailDownloadUrl` values are used for native media elements.
+
+For development, `VITE_API_PROXY` may select the deployed us-east-1 API Gateway HTTPS endpoint. Production hosting still needs a same-origin `/api` reverse proxy; Vite's development proxy is not production hosting. Cloud mode remains disabled in the example/default setup until cloud processing and complete browser workflows are verified. Cloud signed downloads expire after five minutes; refresh results to obtain a new link.

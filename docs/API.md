@@ -1,3 +1,5 @@
+> This document describes the local HTTP adapter. The deployed asynchronous upload/signing contract and its verified boundaries are documented in CLOUD_API_VERIFICATION.md. Cloud image processing/query integration is still pending.
+
 # Frontend integration contract
 
 Base /api (same origin). Vite forwards this to 127.0.0.1:3001 in development.

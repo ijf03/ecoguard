@@ -69,7 +69,7 @@ export function mediaIds(value: unknown): string[] {
     return match[1]!;
   }))];
 }
-export function bulkTags(value: unknown) {
+export function bulkTags(value: unknown): { ids: string[]; tags: string[]; operation: 0 | 1 } {
   const body = object(value);
   const ids = mediaIds(body.urls);
   if (body.operation !== 0 && body.operation !== 1) throw new ApiError(400, 'INVALID_QUERY', 'operation must be 1 (add) or 0 (remove).');

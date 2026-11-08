@@ -1,8 +1,10 @@
 import { Amplify } from 'aws-amplify';
 import { fetchAuthSession, signOut } from 'aws-amplify/auth';
 import { cognitoUserPoolsTokenProvider } from 'aws-amplify/auth/cognito';
-import { ApiError, setMediaTransport } from './api/media';
+import { ApiError, setMediaTransport, setCloudUploads } from './api/media';
 import { createSessionCoordinator } from './session-coordinator';
+
+setCloudUploads(import.meta.env.VITE_CLOUD_UPLOADS === 'true');
 
 const sessions = createSessionCoordinator<string | undefined>();
 const storagePrefix = 'ecoguard.auth.';

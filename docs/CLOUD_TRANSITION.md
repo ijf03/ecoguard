@@ -1,3 +1,5 @@
+> Historical proposal: consult ASSESSMENT_CLARIFICATIONS.md for current account state, API.md for implemented local Cognito ownership, and FIRESTORE_VERIFICATION.md for the transactional cloud metadata stage. Dialogflow is the staff-approved chatbot choice replacing Lex in this proposal. None of those local/emulator checks establish deployed serverless media workflows.
+
 # Cloud transition proposal - 4 November 2026
 
 Status: design and local preparation only. No resources, policies, billing settings or deployments changed.

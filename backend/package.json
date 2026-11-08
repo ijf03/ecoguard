@@ -9,7 +9,10 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "test": "tsx --test tests/*.test.ts",
-    "test:real": "node scripts/test-real.mjs"
+    "test:real": "node scripts/test-real.mjs",
+    "test:cloud": "tsx --test tests/cloud/*.test.ts",
+    "test:cloud:live": "node scripts/test-firestore-live.mjs",
+    "package:lambda": "npm run build && node scripts/package-lambda.mjs"
   },
   "keywords": [],
   "author": "",
@@ -23,6 +26,14 @@
   "type": "module",
   "private": true,
   "dependencies": {
+    "@aws-sdk/client-lambda": "3.1164.0",
+    "@aws-sdk/client-s3": "3.1164.0",
+    "@aws-sdk/s3-request-presigner": "3.1164.0",
+    "@google-cloud/firestore": "9.4.0",
+    "google-auth-library": "10.5.0",
     "jose": "6.2.15"
+  },
+  "overrides": {
+    "rimraf": "6.1.4"
   }
 }

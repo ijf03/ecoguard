@@ -44,3 +44,7 @@ Used two locally generated, clearly labelled synthetic PNGs, one public and one 
 - Review accessible contrast/focus/keyboard behaviour across all states and supported browsers before calling the UI HD-ready.
 
 The local server stays loopback-only. A real Cognito pool/client exists; the media backend is not deployed. Earlier teammate 27-pass/no-skip inference evidence remains historical and must not be presented as the current run. See ASSESSMENT_CLARIFICATIONS.md for the separate GCP project and deployment state.
+
+## Subsequent cloud API/storage stage
+
+The optional signed-upload client now passes a transport test for file hashing, direct storage token separation, conditional duplicates and destination rejection. Latest local/backend suite: 29 passed, 3 real-processing skips (32 total); cloud emulator: 9 passed; frontend: 6 passed, with pinned build/lint passing. The existing real Cognito browser session loaded the owner-scoped collection through deployed API Gateway/Lambda/Firestore during a temporary proxy check. The local proxy was restored afterward. Cloud uploads/inference/video/queries have not been browser-verified. See CLOUD_API_VERIFICATION.md for actual live S3 and federation tests.
