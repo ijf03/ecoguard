@@ -34,8 +34,9 @@ npm ci
 npm run dev
 ~~~
 
-Vite proxies /api to port 3001. The existing frontend starter has intentionally been preserved for teammate work;
-the tested client is at frontend/src/api/media.ts. Application pages are not connected yet.
+Vite proxies /api to port 3001. The frontend now connects uploads, collection previews, full-size viewing,
+video playback controls, all local query modes, retry and bulk tag/deletion workflows.
+See frontend/README.md for controls, verification and remaining Cognito/Lex/cloud integration.
 
 ## Verify
 
@@ -69,7 +70,7 @@ ownership/idempotence requirements, account prerequisites and the next iteration
 
 ## Team and AI use
 
-Frontend pages remain available for teammate contribution; the API client and contract provide integration boundaries.
+Frontend workflows reuse the typed API client; cloud authentication and deployment remain integration work.
 Both members should own, understand and commit their contributions. Record AI assistance in the reports as required by the specification.
 ## Additional local workflows
 
