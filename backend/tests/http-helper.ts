@@ -22,7 +22,7 @@ export async function serve(t: TestContext, app: Server) {
         res.on('end', () => {
           const bytes = Buffer.concat(chunks);
           resolve({ status: res.statusCode!, headers: res.headers, bytes,
-            json: res.headers['content-type']?.includes('application/json') ? JSON.parse(bytes.toString()) : undefined });
+            json: method !== 'HEAD' && res.headers['content-type']?.includes('application/json') ? JSON.parse(bytes.toString()) : undefined });
         });
       });
       req.on('error', reject);

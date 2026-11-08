@@ -24,7 +24,7 @@ export class MediaService {
   // A cloud adapter must enforce unique checksum writes across Lambda instances.
   private pending: Promise<unknown> = Promise.resolve();
   constructor(private readonly repository: MediaRepository, private readonly storage: Storage, private readonly thumbnailer?: Thumbnailer, private readonly detector?: Detector, private readonly imageValidator?: ImageValidator, private readonly videoProcessor?: VideoProcessor) {}
-  searchImage(bytes: Buffer, declared: string, lostPet?: { since: string; until: string; tags: string[] }) {
+  searchImage(bytes: Buffer, declared: string, lostPet?: { since: string; until: string; tags: string[] }, ownerId?: string) {
     const work = this.pending.then(async () => {
       if (bytes.length > 10 * 1024 * 1024) throw new ApiError(413, 'FILE_TOO_LARGE', 'Image exceeds 10 MiB.');
       validateImage(bytes, declared);
@@ -35,29 +35,29 @@ export class MediaService {
       // Image queries match the detected species set (spec 4.3), not the
       // number of animals in the example. Explicit count queries use search().
       const tags = Object.fromEntries(Object.keys(result.species).map(name => [name, 1]));
-      const items = await this.search(tags, lostPet?.since, lostPet?.until);
+      const items = await this.search(tags, lostPet?.since, lostPet?.until, ownerId);
       return lostPet ? items.filter(item => lostPet.tags.every(tag => item.manualTags.includes(tag))) : items;
     });
     this.pending = work.catch(() => undefined);
     return work;
   }
-  upload(bytes: Buffer, contentType: string, filename: string, visibility: 'private' | 'public' = 'private') {
-    const work = this.pending.then(() => this.uploadOne(bytes, contentType, filename, visibility));
+  upload(bytes: Buffer, contentType: string, filename: string, visibility: 'private' | 'public' = 'private', ownerId?: string) {
+    const work = this.pending.then(() => this.uploadOne(bytes, contentType, filename, visibility, ownerId));
     this.pending = work.catch(() => undefined);
     return work;
   }
-  private async uploadOne(bytes: Buffer, declared: string, filename: string, visibility: 'private' | 'public') {
+  private async uploadOne(bytes: Buffer, declared: string, filename: string, visibility: 'private' | 'public', ownerId?: string) {
     const isVideo = declared.startsWith('video/');
     const contentType = isVideo ? validateVideo(bytes, declared) : validateImage(bytes, declared);
     if (!filename.trim() || filename.length > 255 || /[\x00-\x1f\\/]/.test(filename)) {
       throw new ApiError(400, 'INVALID_FILENAME', 'Filename must be 1-255 characters without paths or control characters.');
     }
     const checksum = createHash('sha256').update(bytes).digest('hex');
-    const existing = await this.repository.findChecksum(checksum);
+    const existing = await this.repository.findChecksum(checksum, ownerId);
     if (existing) return { media: existing, duplicate: true };
     const id = randomUUID();
     const media: Media = { id, filename, checksum, storageKey: id, contentType, size: bytes.length,
-      createdAt: new Date().toISOString(), visibility, processingStatus: 'pending', species: {}, manualTags: [], mediaType: isVideo ? 'video' : 'image' };
+      createdAt: new Date().toISOString(), visibility, processingStatus: 'pending', species: {}, manualTags: [], mediaType: isVideo ? 'video' : 'image', ...(ownerId ? { ownerId } : {}) };
     // Images decode before storage; video originals remain retryable if probing fails.
     const thumbnail = !isVideo && this.thumbnailer ? await this.thumbnailer.create(bytes) : undefined;
     // The local composition supplies a validator even when thumbnails are unconfigured.
@@ -77,15 +77,15 @@ export class MediaService {
     }
     try { await this.repository.save(media); }
     catch (error) { await this.storage.remove(id); if (media.thumbnailKey) await this.storage.remove(media.thumbnailKey); throw error; }
-    return { media: this.detector ? await this.processOne(id) : media, duplicate: false };
+    return { media: this.detector ? await this.processOne(id, ownerId) : media, duplicate: false };
   }
-  process(id: string) {
-    const work = this.pending.then(() => this.processOne(id));
+  process(id: string, ownerId?: string) {
+    const work = this.pending.then(() => this.processOne(id, ownerId));
     this.pending = work.catch(() => undefined);
     return work;
   }
-  private async processOne(id: string): Promise<Media> {
-    const media = await this.get(id);
+  private async processOne(id: string, ownerId?: string): Promise<Media> {
+    const media = await this.get(id, ownerId, true);
     // Clear stale inferred results before an attempt, retaining manual annotations.
     media.processingStatus = 'pending';
     media.species = {};
@@ -132,9 +132,9 @@ export class MediaService {
       return media;
     }
   }
-  deleteMany(ids: string[]) {
+  deleteMany(ids: string[], ownerId?: string) {
     const work = this.pending.then(async () => {
-      const items = await Promise.all(ids.map(id => this.get(id)));
+      const items = await Promise.all(ids.map(id => this.get(id, ownerId, true)));
       if (!this.storage.stageDelete) throw new ApiError(503, 'DELETE_UNAVAILABLE', 'Storage does not support coordinated deletion.');
       const staged = await this.storage.stageDelete(items.flatMap(item => [item.storageKey, ...(item.thumbnailKey ? [item.thumbnailKey] : [])]));
       try { await this.repository.removeMany(ids); }
@@ -146,10 +146,10 @@ export class MediaService {
     this.pending = work.catch(() => undefined);
     return work;
   }
-  editTags(ids: string[], tags: string[], operation: number) {
+  editTags(ids: string[], tags: string[], operation: number, ownerId?: string) {
     const work = this.pending.then(async () => {
       // Resolve the whole batch before modifying anything.
-      const items = await Promise.all(ids.map(id => this.get(id)));
+      const items = await Promise.all(ids.map(id => this.get(id, ownerId, true)));
       for (const item of items) {
         if (operation === 1) item.manualTags = [...new Set([...item.manualTags, ...tags])];
         else {
@@ -163,30 +163,34 @@ export class MediaService {
     this.pending = work.catch(() => undefined);
     return work;
   }
-  async search(tags: Record<string, number>, publicSince?: string, publicUntil?: string) {
+  async search(tags: Record<string, number>, publicSince?: string, publicUntil?: string, ownerId?: string) {
     return (await this.repository.list()).filter(item =>
+      (!ownerId || item.ownerId === ownerId || item.visibility === 'public') &&
       (!publicSince || (item.visibility === 'public' && item.createdAt >= publicSince && (!publicUntil || item.createdAt <= publicUntil))) && matches(item, tags));
   }
-  list() { return this.repository.list(); }
-  async get(id: string) {
+  async list(ownerId?: string) {
+    const items = await this.repository.list();
+    return ownerId ? items.filter(item => item.ownerId === ownerId) : items;
+  }
+  async get(id: string, ownerId?: string, mutation = false) {
     const media = await this.repository.get(id);
-    if (!media) throw new ApiError(404, 'MEDIA_NOT_FOUND', 'Media not found.');
+    if (!media || ownerId && media.ownerId !== ownerId && (mutation || media.visibility !== 'public')) throw new ApiError(404, 'MEDIA_NOT_FOUND', 'Media not found.');
     return media;
   }
-  async thumbnail(id: string) {
-    const media = await this.get(id);
+  async thumbnail(id: string, ownerId?: string) {
+    const media = await this.get(id, ownerId);
     if (!media.thumbnailKey) throw new ApiError(404, 'THUMBNAIL_NOT_FOUND', 'Thumbnail is not available.');
     return this.storage.get(media.thumbnailKey);
   }
-  async fromThumbnail(url: string) {
+  async fromThumbnail(url: string, ownerId?: string) {
     const match = /^\/api\/media\/([a-f0-9-]{36})\/thumbnail$/.exec(url);
     if (!match) throw new ApiError(400, 'INVALID_QUERY', 'Use a thumbnailUrl returned by this API.');
-    const media = await this.get(match[1]!);
+    const media = await this.get(match[1]!, ownerId);
     if (!media.thumbnailKey) throw new ApiError(404, 'THUMBNAIL_NOT_FOUND', 'Thumbnail is not available.');
     return media;
   }
-  async file(id: string) {
-    const media = await this.get(id);
+  async file(id: string, ownerId?: string) {
+    const media = await this.get(id, ownerId);
     return { media, bytes: await this.storage.get(media.storageKey) };
   }
 }

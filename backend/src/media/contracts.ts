@@ -1,6 +1,7 @@
 export type ImageType = 'image/jpeg' | 'image/png' | 'image/webp';
 export interface Media {
   id: string;
+  ownerId?: string; // Legacy local records remain unowned; never adopt them implicitly.
   filename: string;
   checksum: string;
   storageKey: string;
@@ -25,7 +26,7 @@ export interface Media {
 export interface MediaRepository {
   list(): Promise<Media[]>;
   get(id: string): Promise<Media | undefined>;
-  findChecksum(checksum: string): Promise<Media | undefined>;
+  findChecksum(checksum: string, ownerId?: string): Promise<Media | undefined>;
   save(media: Media): Promise<void>;
   saveMany(media: Media[]): Promise<void>;
   removeMany(ids: string[]): Promise<void>;
