@@ -10,7 +10,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "test": "tsx --test tests/*.test.ts",
     "test:real": "node scripts/test-real.mjs",
-    "test:cloud": "tsx --test tests/cloud/*.test.ts"
+    "test:cloud": "tsx --test tests/cloud/*.test.ts",
+    "test:cloud:live": "node scripts/test-firestore-live.mjs",
+    "package:lambda": "npm run build && node scripts/package-lambda.mjs"
   },
   "keywords": [],
   "author": "",
@@ -25,6 +27,7 @@
   "private": true,
   "dependencies": {
     "@google-cloud/firestore": "9.4.0",
+    "google-auth-library": "10.5.0",
     "jose": "6.2.15"
   },
   "overrides": {
