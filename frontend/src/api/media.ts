@@ -65,6 +65,9 @@ export function createMediaApi(send: ApiFetch = (path, options) => fetch(path, o
   return {
     list: () => request<{ media: Media[] }>('/api/media'),
     chat: (message: string, sessionId: string) => post<{ reply: string; media: Media[] }>('/api/chat', { message, sessionId }),
+    notificationStatus: () => request<{ enabled: boolean; pending: boolean; tags: string[] }>('/api/notifications'),
+    subscribe: (tags: string[]) => post<{ enabled: boolean; pending: boolean; tags: string[] }>('/api/notifications', { tags }),
+    unsubscribe: () => request<{ enabled: boolean; pending: boolean; tags: string[] }>('/api/notifications', { method: 'DELETE' }),
     process: (id: string) => post<{ media: Media }>(`/api/media/${encodeURIComponent(id)}/process`, {}),
     get: (id: string) => request<{ media: Media }>(`/api/media/${encodeURIComponent(id)}`),
     upload: async (file: File, visibility: 'private' | 'public' = 'private') => {

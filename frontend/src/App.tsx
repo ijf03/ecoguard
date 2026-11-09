@@ -6,15 +6,17 @@ import { MediaViewer } from './components/MediaViewer';
 import { UploadForm } from './components/UploadForm';
 import { LostPetForm, SearchForms } from './components/SearchForms';
 import { ChatPanel } from './components/ChatPanel';
+import { EmailAlerts } from './components/EmailAlerts';
 import './App.css';
 
-type Page = 'collection' | 'upload' | 'search' | 'lost' | 'chat';
+type Page = 'collection' | 'upload' | 'search' | 'lost' | 'chat' | 'alerts';
 const pages: { id: Page; label: string; icon: string }[] = [
   { id: 'collection', label: 'Collection', icon: '▦' },
   { id: 'upload', label: 'Add a sighting', icon: '↑' },
   { id: 'search', label: 'Explore & search', icon: '⌕' },
   { id: 'lost', label: 'Find a lost pet', icon: '♡' },
   { id: 'chat', label: 'Ask EcoGuard', icon: '◇' },
+  { id: 'alerts', label: 'Email alerts', icon: '✉' },
 ];
 const titles: Record<Page, [string, string]> = {
   collection: ['Your field journal.', 'A little closer to the wild.'],
@@ -22,6 +24,7 @@ const titles: Record<Page, [string, string]> = {
   search: ['Follow your curiosity.', 'Discover what’s out there.'],
   lost: ['Let’s bring them home.', 'Together, we see more.'],
   chat: ['Follow the conversation.', 'Find a familiar face.'],
+  alerts: ['Keep an eye out.', 'Let the sightings come to you.'],
 };
 function message(error: unknown) { return friendlyError(error); }
 function MediaCard({ item, selected, onSelect, onView, onRetry, busy, onCopy }: {
@@ -90,6 +93,13 @@ export default function App({ accountName, onSignOut }: { accountName?: string; 
     }).finally(() => {
       if (active && request === requestNumber.current) setLoading(false);
     });
+    return () => { active = false; };
+  }, []);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('sighting');
+    if (!id || !/^[a-f0-9-]{36}$/.test(id)) return;
+    let active = true;
+    mediaApi.get(id).then(result => { if (active) setViewer(result.media); }).catch(reason => { if (active) setError(message(reason)); });
     return () => { active = false; };
   }, []);
   useEffect(() => {
@@ -191,9 +201,10 @@ export default function App({ accountName, onSignOut }: { accountName?: string; 
         {page === 'search' && <SearchForms busy={busy} search={search} />}
         {page === 'lost' && <LostPetForm busy={busy} search={search} />}
         {page === 'chat' && <ChatPanel onView={item => { void view(item); }} onBusyChange={setBusy} />}
+        {page === 'alerts' && <EmailAlerts onBusyChange={setBusy} />}
         {error && <div className="notice error" role="alert"><strong>We couldn’t complete that.</strong><p>{error}</p>{page === 'collection' && <button className="text-button" disabled={loading || busy} onClick={() => void load()}>Try loading again</button>}</div>}
         {notice && <div className="notice" role="status">{notice}</div>}
-        {page !== 'upload' && page !== 'chat' && <section className="collection-section" aria-labelledby="collection-heading" aria-busy={loading || busy}>
+        {page !== 'upload' && page !== 'chat' && page !== 'alerts' && <section className="collection-section" aria-labelledby="collection-heading" aria-busy={loading || busy}>
           <div className="section-heading"><div><div className="eyebrow">{page === 'collection' ? 'COLLECTED MOMENTS' : 'SEARCH RESULTS'}</div><h2 id="collection-heading">{page === 'collection' ? 'Your sightings' : resultLabel || 'Matching sightings'}{hasResults && !loading && <span className="count-badge">{items.length}</span>}</h2></div>
             {page === 'collection' && <button className="button secondary" disabled={loading || busy} onClick={() => void load()}>{loading ? 'Loading…' : '↻ Refresh'}</button>}</div>
           {loading || busy && !hasResults ? <div className="empty-state" role="status"><span className="loading-ring" />{loading ? 'Loading your collection…' : 'Searching sightings…'}</div> : hasResults && items.length > 0 ? <>

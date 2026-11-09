@@ -255,7 +255,7 @@
             "Value": "AussieEcoGuardG80"
           }
         ],
-        "ReservedConcurrentExecutions": 3
+        "ReservedConcurrentExecutions": 2
       }
     },
     "HttpApi": {
@@ -660,6 +660,107 @@
             "RecoverySchedule",
             "Arn"
           ]
+        }
+      }
+    },
+    "NotificationLogs": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/ecoguard-g80-notifications",
+        "RetentionInDays": 14
+      }
+    },
+    "NotificationFunction": {
+      "Type": "AWS::Lambda::Function",
+      "DependsOn": "NotificationLogs",
+      "Properties": {
+        "FunctionName": "ecoguard-g80-notifications",
+        "Runtime": "nodejs22.x",
+        "Handler": "dist/cloud/notification-handler.handler",
+        "Role": {
+          "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+        },
+        "MemorySize": 512,
+        "Timeout": 60,
+        "ReservedConcurrentExecutions": 1,
+        "Code": {
+          "S3Bucket": {
+            "Ref": "ArtifactBucket"
+          },
+          "S3Key": {
+            "Ref": "ArtifactKey"
+          }
+        },
+        "Environment": {
+          "Variables": {
+            "ECOGUARD_GCP_PROJECT": "fit3184-g80-ecoguard-dg26",
+            "ECOGUARD_FRONTEND_ORIGIN": {
+              "Ref": "FrontendOrigin"
+            }
+          }
+        },
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "AussieEcoGuardG80"
+          }
+        ]
+      }
+    },
+    "NotificationSchedule": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "Name": "ecoguard-g80-notifications",
+        "ScheduleExpression": "rate(1 minute)",
+        "State": "ENABLED",
+        "Targets": [
+          {
+            "Id": "PublishAlerts",
+            "Arn": {
+              "Fn::GetAtt": [
+                "NotificationFunction",
+                "Arn"
+              ]
+            },
+            "Input": "{}"
+          }
+        ]
+      }
+    },
+    "NotificationPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "NotificationFunction"
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "NotificationSchedule",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "NotificationAsyncConfig": {
+      "Type": "AWS::Lambda::EventInvokeConfig",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "NotificationFunction"
+        },
+        "Qualifier": "$LATEST",
+        "MaximumRetryAttempts": 2,
+        "MaximumEventAgeInSeconds": 3600,
+        "DestinationConfig": {
+          "OnFailure": {
+            "Destination": {
+              "Fn::GetAtt": [
+                "WorkerFailureQueue",
+                "Arn"
+              ]
+            }
+          }
         }
       }
     }
