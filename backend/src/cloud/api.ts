@@ -4,6 +4,8 @@ import { ApiError } from '../http/errors.js';
 import { bulkTags, countQuery, lostPetQuery, mediaIds, object } from '../media/search.js';
 import type { CloudMedia, FirestoreMediaStore, Reservation } from './firestore-media.js';
 import type { S3MediaStorage } from './s3-media.js';
+import type { ImageQueries } from './image-query.js';
+import type { Chatbot } from './chat.js';
 
 export interface CloudApiOptions {
   store: FirestoreMediaStore;
@@ -11,8 +13,10 @@ export interface CloudApiOptions {
   auth: Pick<Authenticator, 'verify' | 'frontendOrigin'>;
   processingAvailable: boolean;
   schedule: (id: string) => Promise<void>;
+  queries?: ImageQueries;
+  chat?: Chatbot;
 }
-export function createCloudApi({ store, storage, auth, schedule, processingAvailable }: CloudApiOptions) {
+export function createCloudApi({ store, storage, auth, schedule, processingAvailable, queries, chat }: CloudApiOptions) {
   return async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
     const headers = Object.fromEntries(Object.entries(event.headers ?? {}).map(([key, value]) => [key.toLowerCase(), value]));
     const method = event.requestContext.http.method;
@@ -48,6 +52,26 @@ export function createCloudApi({ store, storage, auth, schedule, processingAvail
       };
       if (method === 'GET' && path === '/api/health') return response(200, { status: 'ok', adapter: 'aws-lambda-firestore', uploadMode: 'signed-storage' });
       if (method === 'POST' && path === '/api/auth/session') return response(200, { userId: ownerId });
+      if (method === 'POST' && path === '/api/chat') {
+        if (!chat) throw new ApiError(503, 'CHAT_UNAVAILABLE', 'The conversation service is not configured.');
+        const result = await chat.query(ownerId, body());
+        return response(200, { reply: result.reply, media: await Promise.all(result.media.map(present)) });
+      }
+      if (method === 'POST' && path.startsWith('/api/queries')) {
+        if (!queries) throw new ApiError(503, 'PROCESSOR_UNAVAILABLE', 'Image queries are not configured.');
+        const input = body();
+        if (path === '/api/queries') return response(201, await queries.reserve(ownerId, input));
+        if (typeof input.token !== 'string') throw new ApiError(400, 'INVALID_QUERY', 'Supply your image query token.');
+        if (path === '/api/queries/start') { await queries.start(ownerId, input.token); return response(202, { pending: true }); }
+        if (path === '/api/queries/result') {
+          const result = await queries.poll(ownerId, input.token);
+          if ('pending' in result) return response(202, result);
+          // Image counts select a species set: require one of each species, regardless of counts in the query.
+          const tags = Object.fromEntries([...Object.keys(result.detection.species), ...(result.window?.tags ?? [])].map(tag => [tag, 1]));
+          const media = Object.keys(result.detection.species).length ? await store.search(ownerId, tags, result.window) : [];
+          return response(200, { media: await Promise.all(media.map(present)) });
+        }
+      }
       if (method === 'GET' && path === '/api/media') return response(200, { media: await Promise.all((await store.list(ownerId)).map(present)) });
       if (method === 'POST' && path === '/api/uploads') {
         const input = body();

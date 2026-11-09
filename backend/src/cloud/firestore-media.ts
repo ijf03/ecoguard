@@ -3,17 +3,28 @@ import { FieldPath, Firestore, type Transaction } from '@google-cloud/firestore'
 import type { Media } from '../media/contracts.js';
 import { ApiError } from '../http/errors.js';
 import { matches } from '../media/search.js';
+import { sampleTimes } from '../processing/video.js';
 import { validateDetection, type Detection } from '../processing/detector.js';
 
 type Phase = 'awaiting-upload' | 'ready' | 'processing' | 'complete' | 'failed' | 'rejected' | 'deleting' | 'deleted';
 export interface CloudMedia extends Media {
   ownerId: string;
+  originalUrl?: string;
+  thumbnailUrl?: string;
   phase: Phase;
   revision: number;
   generation: number;
   uploadExpiresAt: number;
   sourceVersion?: string;
+  needsRecovery?: boolean;
+  cleanupAfter?: number;
   lease?: { token: string; until: number; generation: number; modelSha256: string };
+}
+export interface DeletionTombstone {
+  id: string;
+  storageKey: string;
+  phase: 'deleted';
+  cleanupAfter: number;
 }
 export interface Reservation {
   filename: string;
@@ -84,13 +95,13 @@ export class FirestoreMediaStore {
         if (old?.phase === 'deleting') throw conflict('Deletion cleanup is pending. Retry after cleanup.');
       }
       if (old && old.phase === 'awaiting-upload') {
-        tx.set(this.media(old.id), { ...old, phase: 'deleting', revision: old.revision + 1 });
+        tx.set(this.media(old.id), { ...old, phase: 'deleting', needsRecovery: true, cleanupAfter: Math.max(now, old.uploadExpiresAt) + 120000, revision: old.revision + 1 });
       }
       const item: CloudMedia = {
-        ...input, id, ownerId, storageKey: `incoming/${hash(ownerId)}/${id}`,
+        ...input, id, ownerId, originalUrl: `/api/media/${id}/file`, storageKey: `incoming/${hash(ownerId)}/${id}`,
         mediaType: input.contentType === 'video/mp4' ? 'video' : 'image',
         createdAt: new Date(now).toISOString(), uploadExpiresAt: now + 15 * 60_000,
-        phase: 'awaiting-upload', revision: 1, generation: 1,
+        phase: 'awaiting-upload', needsRecovery: true, revision: 1, generation: 1,
         processingStatus: 'pending', species: {}, manualTags: [],
       };
       tx.create(this.media(id), item);
@@ -119,7 +130,7 @@ export class FirestoreMediaStore {
         return false;
       }
       if (item.phase !== 'awaiting-upload') throw conflict('Upload is not awaiting an object.');
-      tx.set(ref, { ...item, sourceVersion: source.version, phase: 'ready', revision: item.revision + 1 });
+      tx.set(ref, { ...item, sourceVersion: source.version, phase: 'ready', needsRecovery: true, revision: item.revision + 1 });
       return true;
     });
   }
@@ -132,7 +143,7 @@ export class FirestoreMediaStore {
       const now = this.now();
       if (!item?.sourceVersion || !['ready', 'processing'].includes(item.phase) || item.lease && item.lease.until > now) return undefined;
       const lease = { token, until: now + leaseMs, generation: item.generation, modelSha256 };
-      tx.set(ref, { ...item, phase: 'processing', lease, processingStatus: 'pending', revision: item.revision + 1 });
+      tx.set(ref, { ...item, phase: 'processing', needsRecovery: true, lease, processingStatus: 'pending', revision: item.revision + 1 });
       return { id, sourceVersion: item.sourceVersion, generation: item.generation, token, modelSha256 };
     });
   }
@@ -141,7 +152,7 @@ export class FirestoreMediaStore {
       item.generation === ticket.generation && item.lease?.token === ticket.token &&
       item.lease.generation === ticket.generation && item.lease.modelSha256 === ticket.modelSha256 && item.lease.until > this.now();
   }
-  async complete(ticket: ProcessingTicket, detection: Detection, thumbnail?: { key: string; width: number; height: number; originalWidth: number; originalHeight: number }): Promise<boolean> {
+  async complete(ticket: ProcessingTicket, detection: Detection & { duration?: number; sampledAt?: number[] }, thumbnail?: { key: string; width: number; height: number; originalWidth: number; originalHeight: number }): Promise<boolean> {
     validateDetection(detection);
     if (detection.model.weightsSha256 !== ticket.modelSha256) throw new Error('Processing model digest changed.');
     if (thumbnail && (!thumbnail.key.startsWith(`thumbnails/${ticket.id}/${ticket.token}/`) ||
@@ -151,10 +162,12 @@ export class FirestoreMediaStore {
       const item = (await tx.get(ref)).data() as CloudMedia | undefined;
       if (!this.current(item, ticket)) return false;
       if (item.contentType !== 'video/mp4' && !thumbnail && !item.thumbnailKey) throw new Error('Images require a completed thumbnail before publication.');
-      const completed: CloudMedia = { ...item, species: detection.species, detectionModel: detection.model, phase: 'complete', processingStatus: 'complete', revision: item.revision + 1 };
+      if (item.contentType === 'video/mp4' && (detection.duration === undefined || JSON.stringify(sampleTimes(detection.duration)) !== JSON.stringify(detection.sampledAt))) throw new Error('Invalid video sampling result.');
+      const completed: CloudMedia = { ...item, species: detection.species, detectionModel: detection.model, phase: 'complete', needsRecovery: false, processingStatus: 'complete', revision: item.revision + 1 };
+      if (item.contentType === 'video/mp4') { completed.duration = detection.duration!; completed.sampledAt = detection.sampledAt!; }
       delete completed.lease;
       delete completed.processingError;
-      if (thumbnail) Object.assign(completed, { thumbnailKey: thumbnail.key, thumbnailWidth: thumbnail.width, thumbnailHeight: thumbnail.height, width: thumbnail.originalWidth, height: thumbnail.originalHeight });
+      if (thumbnail) Object.assign(completed, { thumbnailKey: thumbnail.key, thumbnailUrl: `/api/media/${ticket.id}/thumbnail`, thumbnailWidth: thumbnail.width, thumbnailHeight: thumbnail.height, width: thumbnail.originalWidth, height: thumbnail.originalHeight });
       tx.set(ref, completed);
       this.outbox(tx, completed, item.generation === 1 ? 'upload' : 'update');
       return true;
@@ -166,7 +179,7 @@ export class FirestoreMediaStore {
       const ref = this.media(ticket.id);
       const item = (await tx.get(ref)).data() as CloudMedia | undefined;
       if (!this.current(item, ticket)) return false;
-      const failed: CloudMedia = { ...item, phase: 'failed', processingStatus: 'failed', processingError: code, revision: item.revision + 1 };
+      const failed: CloudMedia = { ...item, phase: 'failed', needsRecovery: false, processingStatus: 'failed', processingError: code, revision: item.revision + 1 };
       delete failed.lease;
       tx.set(ref, failed);
       return true;
@@ -179,7 +192,7 @@ export class FirestoreMediaStore {
       const item = (await tx.get(ref)).data() as CloudMedia | undefined;
       if (!item || !visible(item) || item.ownerId !== ownerId) throw missing();
       if ((!item.sourceVersion && !(item.phase === 'failed' && item.processingError === 'PROCESSOR_UNAVAILABLE')) || item.phase === 'processing' && item.lease && item.lease.until > this.now()) throw conflict('Upload is incomplete, invalid, or processing is still active.');
-      const next: CloudMedia = { ...item, phase: item.sourceVersion ? 'ready' : 'awaiting-upload', processingStatus: 'pending', species: {}, generation: item.generation + 1, revision: item.revision + 1 };
+      const next: CloudMedia = { ...item, phase: item.sourceVersion ? 'ready' : 'awaiting-upload', needsRecovery: true, processingStatus: 'pending', species: {}, generation: item.generation + 1, revision: item.revision + 1 };
       delete next.lease; delete next.processingError; delete next.detectionModel;
       tx.set(ref, next);
       return next;
@@ -216,37 +229,55 @@ export class FirestoreMediaStore {
       const items = (await tx.getAll(...refs)).map(s => s.data() as CloudMedia | undefined);
       if (items.some(item => !item || item.ownerId !== ownerId || item.phase === 'deleted')) throw missing();
       return items.map((item, index) => {
-        const next: CloudMedia = { ...item!, phase: 'deleting', revision: item!.phase === 'deleting' ? item!.revision : item!.revision + 1 };
+        const next: CloudMedia = { ...item!, phase: 'deleting', needsRecovery: true, cleanupAfter: item!.cleanupAfter ?? Math.max(this.now(), item!.uploadExpiresAt, item!.lease?.until ?? 0) + 120000, revision: item!.phase === 'deleting' ? item!.revision : item!.revision + 1 };
         delete next.lease;
         tx.set(refs[index]!, next);
         return next;
       });
     });
   }
-  /** Call only after ALL versions below this media's immutable source/thumbnail prefixes were removed. */
+  /** After storage cleanup, remove the media/index/outbox/reservation and retain only a minimal quiet-period job. */
   async finishDelete(id: string): Promise<boolean> {
+    const existing = (await this.media(id).get()).data() as CloudMedia | undefined;
+    if (existing && existing.phase !== 'deleting') throw conflict('Media must be tombstoned before storage cleanup.');
+    if (existing) {
+      for (;;) {
+        const events = await this.collection('outbox').where('mediaId', '==', id).limit(100).get();
+        if (events.empty) break;
+        const batch = this.db.batch();
+        for (const event of events.docs) batch.delete(event.ref);
+        await batch.commit();
+      }
+    }
     return this.db.runTransaction(async tx => {
       const ref = this.media(id);
       const item = (await tx.get(ref)).data() as CloudMedia | undefined;
-      if (!item || item.phase === 'deleted') return false;
+      const tombstone = this.collection('tombstones').doc(id);
+      if (!item) {
+        const previous = (await tx.get(tombstone)).data() as DeletionTombstone | undefined;
+        if (previous && previous.cleanupAfter <= this.now()) tx.delete(tombstone);
+        return false;
+      }
       if (item.phase !== 'deleting') throw conflict('Media must be tombstoned before storage cleanup.');
       const reservation = this.reservation(item.ownerId, item.checksum);
       const pointer = await tx.get(reservation);
-      tx.set(ref, { ...item, phase: 'deleted', revision: item.revision + 1 });
+      tx.delete(ref);
+      tx.set(tombstone, { id, storageKey: item.storageKey, phase: 'deleted', cleanupAfter: item.cleanupAfter ?? this.now() + 120000 } satisfies DeletionTombstone);
       if (pointer.exists && pointer.get('mediaId') === id) tx.delete(reservation);
       return true;
     });
   }
   /** Trusted IAM-only worker access. Never expose this as a user-facing route. */
-  async readForWorker(id: string): Promise<CloudMedia | undefined> {
-    return (await this.media(id).get()).data() as CloudMedia | undefined;
+  async readForWorker(id: string): Promise<CloudMedia | DeletionTombstone | undefined> {
+    const item = (await this.media(id).get()).data() as CloudMedia | undefined;
+    return item ?? (await this.collection('tombstones').doc(id).get()).data() as DeletionTombstone | undefined;
   }
   async rejectUpload(id: string): Promise<void> {
     await this.db.runTransaction(async tx => {
       const ref = this.media(id);
       const item = (await tx.get(ref)).data() as CloudMedia | undefined;
       if (!item || item.phase !== 'awaiting-upload') return;
-      tx.set(ref, { ...item, phase: 'rejected', processingStatus: 'failed', processingError: 'INVALID_MEDIA', revision: item.revision + 1 });
+      tx.set(ref, { ...item, phase: 'rejected', needsRecovery: false, processingStatus: 'failed', processingError: 'INVALID_MEDIA', revision: item.revision + 1 });
     });
   }
   async attachThumbnail(id: string, sourceVersion: string, thumbnail: { key: string; width: number; height: number; originalWidth: number; originalHeight: number }): Promise<boolean> {
@@ -256,8 +287,19 @@ export class FirestoreMediaStore {
       const item = (await tx.get(ref)).data() as CloudMedia | undefined;
       if (!item || !visible(item) || item.sourceVersion !== sourceVersion) return false;
       if (item.thumbnailKey === thumbnail.key) return true;
-      tx.set(ref, { ...item, thumbnailKey: thumbnail.key, thumbnailWidth: thumbnail.width, thumbnailHeight: thumbnail.height,
+      tx.set(ref, { ...item, thumbnailKey: thumbnail.key, thumbnailUrl: `/api/media/${id}/thumbnail`, thumbnailWidth: thumbnail.width, thumbnailHeight: thumbnail.height,
         width: thumbnail.originalWidth, height: thumbnail.originalHeight, revision: item.revision + 1 });
+      return true;
+    });
+  }
+  async attachVideoMetadata(id: string, sourceVersion: string, video: { duration: number; width: number; height: number }): Promise<boolean> {
+    sampleTimes(video.duration);
+    if (![video.width, video.height].every(n => Number.isSafeInteger(n) && n > 0) || video.width > 3840 || video.height > 2160) throw new Error('Invalid video dimensions.');
+    return this.db.runTransaction(async tx => {
+      const ref = this.media(id);
+      const item = (await tx.get(ref)).data() as CloudMedia | undefined;
+      if (!item || !visible(item) || item.sourceVersion !== sourceVersion) return false;
+      tx.set(ref, { ...item, duration: video.duration, width: video.width, height: video.height, revision: item.revision + 1 });
       return true;
     });
   }
@@ -266,8 +308,31 @@ export class FirestoreMediaStore {
       const ref = this.media(id);
       const item = (await tx.get(ref)).data() as CloudMedia | undefined;
       if (!item || !['ready', 'awaiting-upload'].includes(item.phase)) return;
-      tx.set(ref, { ...item, phase: 'failed', processingStatus: 'failed', processingError: 'PROCESSOR_UNAVAILABLE', revision: item.revision + 1 });
+      tx.set(ref, { ...item, phase: 'failed', needsRecovery: false, processingStatus: 'failed', processingError: 'PROCESSOR_UNAVAILABLE', revision: item.revision + 1 });
     });
+  }
+  async expireUnuploaded(id: string): Promise<boolean> {
+    return this.db.runTransaction(async tx => {
+      const ref = this.media(id);
+      const item = (await tx.get(ref)).data() as CloudMedia | undefined;
+      if (!item || item.phase !== 'awaiting-upload' || item.uploadExpiresAt > this.now()) return false;
+      tx.set(ref, { ...item, phase: 'deleting', needsRecovery: true, cleanupAfter: this.now() + 120000, revision: item.revision + 1 });
+      return true;
+    });
+  }
+  async recoveryPage(kind: 'media' | 'tombstones', after?: string) {
+    const collection = this.collection(kind);
+    const base = kind === 'media' ? collection.where('needsRecovery', '==', true) : collection;
+    const query = base.orderBy(FieldPath.documentId()).limit(25);
+    const page = await (after ? query.startAfter(after) : query).get();
+    return { items: page.docs.map(s => s.data() as CloudMedia | DeletionTombstone), cursor: page.size === 25 ? page.docs.at(-1)!.id : undefined };
+  }
+  async recoveryCursor(kind: 'media' | 'tombstones'): Promise<string | undefined> {
+    const value: unknown = (await this.collection('control').doc(`recovery_${kind}`).get()).get('cursor');
+    return typeof value === 'string' && /^[a-f0-9-]{36}$/.test(value) ? value : undefined;
+  }
+  async saveRecoveryCursor(kind: 'media' | 'tombstones', cursor?: string): Promise<void> {
+    await this.collection('control').doc(`recovery_${kind}`).set({ cursor: cursor ?? null });
   }
   async list(ownerId: string): Promise<CloudMedia[]> {
     this.owner(ownerId);
