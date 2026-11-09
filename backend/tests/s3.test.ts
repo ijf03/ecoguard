@@ -5,7 +5,7 @@ import { S3MediaStorage } from '../src/cloud/s3-media.js';
 import type { CloudMedia } from '../src/cloud/firestore-media.js';
 
 test('real S3 presigner binds checksum, type, length and overwrite precondition without network calls', async () => {
-  const client = new S3Client({ region: 'us-east-1', credentials: { accessKeyId: 'AKIATESTONLY000000000', secretAccessKey: 'test-only-not-a-real-secret' } });
+  const client = new S3Client({ region: 'us-east-1', credentials: { accessKeyId: 'ecoguard-test-access', secretAccessKey: 'test-only-not-a-real-secret' } });
   try {
     const storage = new S3MediaStorage(client, 'ecoguard-test-bucket');
     const item: CloudMedia = { id: '00000000-0000-4000-8000-000000000000', ownerId: 'alice', filename: 'cat.png', checksum: 'a'.repeat(64), size: 100,

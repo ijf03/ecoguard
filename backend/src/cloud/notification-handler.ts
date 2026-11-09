@@ -1,0 +1,12 @@
+import { fileURLToPath } from 'node:url';
+import { Firestore } from '@google-cloud/firestore';
+import { SNSClient } from '@aws-sdk/client-sns';
+import { CognitoIdentityProviderClient } from '@aws-sdk/client-cognito-identity-provider';
+import { CloudNotifications } from './notifications.js';
+const projectId = process.env.ECOGUARD_GCP_PROJECT;
+const origin = process.env.ECOGUARD_FRONTEND_ORIGIN;
+if (projectId !== 'fit3184-g80-ecoguard-dg26' || !origin?.startsWith('https://')) throw new Error('Missing notification configuration.');
+const region = process.env.AWS_REGION ?? 'us-east-1';
+const db = new Firestore({ projectId, keyFilename: fileURLToPath(new URL('../../config/aws-wif.json', import.meta.url)) });
+const notifications = new CloudNotifications(db, new SNSClient({ region }), new CognitoIdentityProviderClient({ region }), origin);
+export const handler = async () => notifications.deliver();

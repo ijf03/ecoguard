@@ -212,9 +212,10 @@ export class FirestoreMediaStore {
       return items.map((value, index) => {
         const item = value!;
         const next = json(item);
-        next.revision++;
         next.manualTags = operation === 1 ? [...new Set([...item.manualTags, ...tags])] : item.manualTags.filter(tag => !tags.includes(tag));
         if (operation === 0) for (const tag of tags) delete next.species[tag];
+        if (JSON.stringify(next.manualTags) === JSON.stringify(item.manualTags) && JSON.stringify(next.species) === JSON.stringify(item.species)) return item;
+        next.revision++;
         tx.set(refs[index]!, next);
         this.outbox(tx, next, 'update');
         return next;
@@ -241,8 +242,8 @@ export class FirestoreMediaStore {
     const existing = (await this.media(id).get()).data() as CloudMedia | undefined;
     if (existing && existing.phase !== 'deleting') throw conflict('Media must be tombstoned before storage cleanup.');
     if (existing) {
-      for (;;) {
-        const events = await this.collection('outbox').where('mediaId', '==', id).limit(100).get();
+      for (const name of ['outbox', 'deliveries']) for (;;) {
+        const events = await this.collection(name).where('mediaId', '==', id).limit(100).get();
         if (events.empty) break;
         const batch = this.db.batch();
         for (const event of events.docs) batch.delete(event.ref);

@@ -10,6 +10,9 @@ import { S3MediaStorage } from './s3-media.js';
 import { SSMClient } from '@aws-sdk/client-ssm';
 import { CloudImageQueries } from './image-query.js';
 import { DialogflowChat } from './chat.js';
+import { SNSClient } from '@aws-sdk/client-sns';
+import { CognitoIdentityProviderClient } from '@aws-sdk/client-cognito-identity-provider';
+import { CloudNotifications } from './notifications.js';
 
 const required = (name: string) => {
   const value = process.env[name];
@@ -25,7 +28,7 @@ const lambda = new LambdaClient({ region });
 const s3 = new S3Client({ region });
 const store = new FirestoreMediaStore(db);
 export const handler = createCloudApi({
-  store, chat: new DialogflowChat(store),
+  store, chat: new DialogflowChat(store), notifications: new CloudNotifications(db, new SNSClient({ region }), new CognitoIdentityProviderClient({ region }), required('ECOGUARD_FRONTEND_ORIGIN')),
   storage: new S3MediaStorage(s3, bucket),
   ...(process.env.ECOGUARD_INFERENCE_FUNCTION && process.env.ECOGUARD_PROCESSOR_FUNCTION ? { queries: new CloudImageQueries(s3, lambda, new SSMClient({ region }), bucket, process.env.ECOGUARD_PROCESSOR_FUNCTION, process.env.ECOGUARD_INFERENCE_FUNCTION) } : {}),
   auth: createCognitoAuth({ userPoolId: required('ECOGUARD_USER_POOL_ID'), clientId: required('ECOGUARD_CLIENT_ID'), frontendOrigin: required('ECOGUARD_FRONTEND_ORIGIN') }),

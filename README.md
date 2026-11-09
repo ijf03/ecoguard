@@ -1,8 +1,31 @@
-# Aussie EcoGuard - Group 80
+# Aussie EcoGuard - FIT3184 G80
 
-Local-first FIT3184 Assignment 2 implementation with YOLO animal detection, temporary/lost-pet image queries and sampled MP4 processing. Real Cognito registration/sign-in and authenticated local API/media access are implemented. Serverless deployment, the Dialogflow chatbot and notifications remain incomplete.
-See [docs/PROGRESS.md](docs/PROGRESS.md) for the audit, executed checks, commits and limitations.
-See [docs/API.md](docs/API.md) for the frontend integration contract.
+Live application: **https://fit3184-g80-ecoguard-dg26.web.app**
+
+Source for the completed integration is on `feat/complete-assignment-workflows`. Preserve the teammate’s main-branch history; review the feature branch before merging. The private repository and stage commits are part of the submission evidence.
+
+## Deployed architecture
+
+- Firebase Hosting serves the HTTPS React frontend. Cognito handles registration, verification and sign-in.
+- API Gateway and Lambda enforce verified token identity and owner/public access rules.
+- Private, encrypted, versioned S3 stores originals, thumbnails and version-pinned model weights.
+- Separate Lambda workers perform image validation/thumbnails, YOLO11n ONNX inference and bounded H.264 video sampling.
+- GCP Firestore provides transactional metadata, deduplication reservations, leases, recovery state, subscriptions and notification outbox records.
+- AWS workloads access Google APIs through restricted workload federation, without service-account keys.
+- Dialogflow ES recognises natural-language species/count and lost-pet queries; the API Lambda fulfills them with real search results.
+- EventBridge drives recovery and a separate SNS email publisher. Emails require explicit subscription confirmation and match watched tags.
+
+Cloud project: `fit3184-g80-ecoguard-dg26`; AWS region: `us-east-1`. SmartPark is unrelated and is not used. The EcoGuard GCP project has no billing account linked. Do not place AWS keys, passwords or service-account keys in the repository or frontend.
+
+## Verified behaviour
+
+Deployed browser checks cover Cognito sign-in; image/video upload and original viewing; H.264 playback; temporary image searches; public-only lost-pet image searches; real Dialogflow fulfillment with clickable media; bulk tag addition; and SNS confirmation. Controlled live tests additionally verify actual S3-triggered inference, deduplication, count search, owner isolation, image compression, byte-range retrieval, temporary-file cleanup and matching/nonmatching alert publications. Permanent browser deletion was cancelled to preserve the four requested interview fixtures; backend cleanup/recovery tests pass.
+
+See [model evidence](docs/CLOUD_MODEL_VERIFICATION.md), [image-query evidence](docs/CLOUD_IMAGE_QUERIES.md), [chatbot evidence](docs/CHATBOT_VERIFICATION.md), [notification evidence](docs/NOTIFICATIONS_VERIFICATION.md), and [hosting](docs/DEPLOYED_FRONTEND.md). Dated earlier stage documents record historical states and must not be read as the current feature checklist.
+
+## Limits
+
+The current model supports ten broad animal classes. Foxes, cane toads, breeds and colours require manual tags or replacement model configuration. Video counts are maximum observations in sampled frames, not unique animals; moving-wildlife accuracy is not established. The controlled dog video also produced a false-positive cat. Learner Lab uses its pre-existing broad LabRole; production should split permissions. Email delivery is at least once, filter changes can take up to 15 minutes, and confirmation is required.
 
 ## Run locally
 
@@ -40,52 +63,21 @@ ECOGUARD_USER_POOL_ID and ECOGUARD_CLIENT_ID in backend/.env to the same public 
 Use the exact frontend origin http://127.0.0.1:5173 (or configure ECOGUARD_FRONTEND_ORIGIN).
 See frontend/README.md for authentication, controls and remaining cloud integration.
 
-## Verify
 
-~~~powershell
-cd backend
-npm test
-npm run test:real
-npm run typecheck
-npm run build
-~~~
+## Verification and deployment
 
-To include the real Pillow integration test, set TEST_PYTHON to the same Python executable as ECOGUARD_PYTHON before npm test.
-Without TEST_PYTHON, the Pillow integration test is reported as skipped.
-The real detector and video tests additionally require TEST_MODEL_PATH, TEST_IMAGE_DIR and (for video)
-TEST_FFMPEG/TEST_FFPROBE. Skipped tests are not real-inference verification; see [docs/VIDEO.md](docs/VIDEO.md).
-Frontend: npm run build and npm run lint from frontend.
-HTTP tests use named pipes on Windows and loopback TCP on this macOS development environment.
-Current automated and browser evidence is recorded in docs/FRONTEND_VERIFICATION.md.
-The new restart audit also executes real TCP requests across two separate Node processes outside that sandbox.
-`npm run test:real` loads local processing configuration and checks dependencies/fixtures before running
-the complete suite; missing prerequisites fail instead of silently skipping. See [latest audit](docs/LOCAL_AUDIT.md).
+Use Node 24 (tested) and npm 9+ to honour security overrides; npm 11 is verified. The loopback Node/SQLite/filesystem server is a development adapter, not the deployed production server.
 
-See [Firestore stage verification](docs/FIRESTORE_VERIFICATION.md) for the separate cloud metadata adapter and emulator checks.
-It is not yet wired into a deployed API. Install dependencies using npm 8.3+ (npm 11 verified) to honor security overrides.
+From `backend`: `npm ci`, `npm run typecheck`, `npm test`, `npm run build`.
+Cloud integration suite: start a loopback Firestore emulator, then set `FIRESTORE_EMULATOR_HOST=127.0.0.1:8088` and run `npm run test:cloud`.
+From `frontend`: `npm ci`, `npm test`, `npm run build`, `npm run lint`.
 
-## Deployment boundary
+Real local inference tests require the configured Python/Pillow/YOLO/FFmpeg prerequisites; missing prerequisites are reported as skips in the regular suite. Use `npm run test:real` to require those prerequisites instead. Real deployed checks use explicit `ECOGUARD_ALLOW_LIVE_TESTS=1` opt-in and only generated disposable fixtures; see scripts `test-model-pipeline-live.mjs` and `test-query-live.mjs`.
 
-The Node server, SQLite and local filesystem are development adapters, not the production architecture.
-When configured, Cognito access tokens protect API/media access and enforce per-user ownership.
-Without both Cognito IDs the local development API is unauthenticated. Keep it loopback-only.
-NODE_ENV=production is rejected. Cloud integration must add S3 events, serverless processors,
-least-privilege roles and secure secondary-cloud access. Do not deploy the local server.
-Cognito, an authenticated API Gateway/Lambda metadata API, private S3 storage and a separate unbilled GCP Firestore database are deployed. AWS-to-GCP federation has been verified.
-See docs/ASSESSMENT_CLARIFICATIONS.md for verified cloud state; cloud media processing, chatbot, notifications and final hosting remain unfinished. See docs/CLOUD_API_VERIFICATION.md for deployed versus pending behaviour.
-The [cloud transition proposal](docs/CLOUD_TRANSITION.md) maps existing adapters to AWS/GCP and records
-ownership/idempotence requirements, account prerequisites and the next iteration. It is not deployed configuration.
+Package Node with `npm run package:lambda` using npm 9+. Linux thumbnail/model packaging and CloudFormation deployment are in `infrastructure/aws/`. Deployment requires the verified inference manifest from the bounded Linux build, and reuses immutable SHA-named artifacts. Set `ECOGUARD_FRONTEND_ORIGIN=https://fit3184-g80-ecoguard-dg26.web.app`. `infrastructure/gcp/deploy-hosting.py` publishes the compiled frontend after checking project identity and billing-disabled status. `setup-dialogflow.py` recreates the annotated agent configuration.
 
-## Team and AI use
+## Team and AI assistance
 
-Frontend workflows reuse the typed API client and real Cognito SDK. Cloud media deployment remains integration work.
-Both members should own, understand and commit their contributions. Record AI assistance in the reports as required by the specification.
-## Additional local workflows
+Dhruv Gautam (35003782) is responsible for subsequent integration/deployment work; Isabelle “Sabi” Fernan (34095756) supplied the substantial local backend foundation. The requested 70/30 split is an estimate of delivered scope for team review, not measured hours or a previously agreed percentage. Both members must understand the final implementation and demonstrate their actual contributions.
 
-`POST /api/search/image` accepts a temporary query image without storage. `POST /api/search/lost-pet/image`
-adds public/date/manual-tag filters. Image queries match all detected species regardless of example counts;
-explicit tag/count queries use AND/minimum thresholds. No animals returns no matches.
-`POST /api/media` also accepts MP4/H.264 videos (50 MiB default, 120 seconds maximum).
-Samples at 0, 10, 20... seconds use maximum observed species counts, not unique-animal counts.
-Original URLs support GET/HEAD and single HTTP byte ranges. Retry uses the existing process endpoint.
-See [API examples](docs/API.md) and [video setup, limits and evidence](docs/VIDEO.md).
+OpenAI Codex substantially assisted implementation, deployment, testing and documentation. See [AI acknowledgement](docs/AI_ASSISTANCE.md). Review personal reports in your own words; do not treat generated reflections as evidence of unreported experiences.

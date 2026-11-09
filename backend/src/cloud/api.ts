@@ -6,6 +6,7 @@ import type { CloudMedia, FirestoreMediaStore, Reservation } from './firestore-m
 import type { S3MediaStorage } from './s3-media.js';
 import type { ImageQueries } from './image-query.js';
 import type { Chatbot } from './chat.js';
+import type { Notifications } from './notifications.js';
 
 export interface CloudApiOptions {
   store: FirestoreMediaStore;
@@ -15,8 +16,9 @@ export interface CloudApiOptions {
   schedule: (id: string) => Promise<void>;
   queries?: ImageQueries;
   chat?: Chatbot;
+  notifications?: Notifications;
 }
-export function createCloudApi({ store, storage, auth, schedule, processingAvailable, queries, chat }: CloudApiOptions) {
+export function createCloudApi({ store, storage, auth, schedule, processingAvailable, queries, chat, notifications }: CloudApiOptions) {
   return async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
     const headers = Object.fromEntries(Object.entries(event.headers ?? {}).map(([key, value]) => [key.toLowerCase(), value]));
     const method = event.requestContext.http.method;
@@ -52,6 +54,16 @@ export function createCloudApi({ store, storage, auth, schedule, processingAvail
       };
       if (method === 'GET' && path === '/api/health') return response(200, { status: 'ok', adapter: 'aws-lambda-firestore', uploadMode: 'signed-storage' });
       if (method === 'POST' && path === '/api/auth/session') return response(200, { userId: ownerId });
+      if (path === '/api/notifications') {
+        if (!notifications) throw new ApiError(503, 'NOTIFICATIONS_UNAVAILABLE', 'Email alerts are not configured.');
+        if (method === 'GET') return response(200, await notifications.status(ownerId));
+        if (method === 'POST') {
+          const input = body();
+          if (Object.keys(input).some(key => key !== 'tags')) throw new ApiError(400, 'INVALID_SUBSCRIPTION', 'Supply watched tags only. The email comes from your verified account.');
+          return response(200, await notifications.subscribe(ownerId, authorization.slice(7), input.tags));
+        }
+        if (method === 'DELETE') { await notifications.unsubscribe(ownerId); return response(200, { enabled: false, pending: false, tags: [] }); }
+      }
       if (method === 'POST' && path === '/api/chat') {
         if (!chat) throw new ApiError(503, 'CHAT_UNAVAILABLE', 'The conversation service is not configured.');
         const result = await chat.query(ownerId, body());
