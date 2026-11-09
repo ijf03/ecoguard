@@ -5,6 +5,7 @@ import { bulkTags, countQuery, lostPetQuery, mediaIds, object } from '../media/s
 import type { CloudMedia, FirestoreMediaStore, Reservation } from './firestore-media.js';
 import type { S3MediaStorage } from './s3-media.js';
 import type { ImageQueries } from './image-query.js';
+import type { Chatbot } from './chat.js';
 
 export interface CloudApiOptions {
   store: FirestoreMediaStore;
@@ -13,8 +14,9 @@ export interface CloudApiOptions {
   processingAvailable: boolean;
   schedule: (id: string) => Promise<void>;
   queries?: ImageQueries;
+  chat?: Chatbot;
 }
-export function createCloudApi({ store, storage, auth, schedule, processingAvailable, queries }: CloudApiOptions) {
+export function createCloudApi({ store, storage, auth, schedule, processingAvailable, queries, chat }: CloudApiOptions) {
   return async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
     const headers = Object.fromEntries(Object.entries(event.headers ?? {}).map(([key, value]) => [key.toLowerCase(), value]));
     const method = event.requestContext.http.method;
@@ -50,6 +52,11 @@ export function createCloudApi({ store, storage, auth, schedule, processingAvail
       };
       if (method === 'GET' && path === '/api/health') return response(200, { status: 'ok', adapter: 'aws-lambda-firestore', uploadMode: 'signed-storage' });
       if (method === 'POST' && path === '/api/auth/session') return response(200, { userId: ownerId });
+      if (method === 'POST' && path === '/api/chat') {
+        if (!chat) throw new ApiError(503, 'CHAT_UNAVAILABLE', 'The conversation service is not configured.');
+        const result = await chat.query(ownerId, body());
+        return response(200, { reply: result.reply, media: await Promise.all(result.media.map(present)) });
+      }
       if (method === 'POST' && path.startsWith('/api/queries')) {
         if (!queries) throw new ApiError(503, 'PROCESSOR_UNAVAILABLE', 'Image queries are not configured.');
         const input = body();

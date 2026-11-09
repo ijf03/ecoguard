@@ -5,20 +5,23 @@ import { fileSize, friendlyError, tagsFromText } from './forms';
 import { MediaViewer } from './components/MediaViewer';
 import { UploadForm } from './components/UploadForm';
 import { LostPetForm, SearchForms } from './components/SearchForms';
+import { ChatPanel } from './components/ChatPanel';
 import './App.css';
 
-type Page = 'collection' | 'upload' | 'search' | 'lost';
+type Page = 'collection' | 'upload' | 'search' | 'lost' | 'chat';
 const pages: { id: Page; label: string; icon: string }[] = [
   { id: 'collection', label: 'Collection', icon: '▦' },
   { id: 'upload', label: 'Add a sighting', icon: '↑' },
   { id: 'search', label: 'Explore & search', icon: '⌕' },
   { id: 'lost', label: 'Find a lost pet', icon: '♡' },
+  { id: 'chat', label: 'Ask EcoGuard', icon: '◇' },
 ];
 const titles: Record<Page, [string, string]> = {
   collection: ['Your field journal.', 'A little closer to the wild.'],
   upload: ['Make a difference.', 'One sighting at a time.'],
   search: ['Follow your curiosity.', 'Discover what’s out there.'],
   lost: ['Let’s bring them home.', 'Together, we see more.'],
+  chat: ['Follow the conversation.', 'Find a familiar face.'],
 };
 function message(error: unknown) { return friendlyError(error); }
 function MediaCard({ item, selected, onSelect, onView, onRetry, busy, onCopy }: {
@@ -64,6 +67,7 @@ export default function App({ accountName, onSignOut }: { accountName?: string; 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const deleteRef = useRef<HTMLDialogElement>(null);
   const requestNumber = useRef(0);
+  const pollingStarted = useRef(0);
   // New requests supersede prior results, including Strict Mode's initial reload.
   async function load() {
     const request = ++requestNumber.current;
@@ -88,6 +92,25 @@ export default function App({ accountName, onSignOut }: { accountName?: string; 
     });
     return () => { active = false; };
   }, []);
+  useEffect(() => {
+    const pending = items.some(item => item.processingStatus === 'pending');
+    if (page !== 'collection' || !pending) { pollingStarted.current = 0; return; }
+    if (busy || loading) return;
+    if (!pollingStarted.current) pollingStarted.current = Date.now();
+    if (Date.now() - pollingStarted.current > 15 * 60_000) return;
+    let active = true;
+    let inFlight = false;
+    const request = requestNumber.current;
+    const timer = window.setInterval(() => {
+      if (Date.now() - pollingStarted.current > 15 * 60_000) { window.clearInterval(timer); return; }
+      if (document.visibilityState !== 'visible' || inFlight) return;
+      inFlight = true;
+      void mediaApi.list().then(result => {
+        if (active && request === requestNumber.current) setItems(result.media);
+      }).catch(() => { /* Keep existing cards and the manual Refresh control on a transient failure. */ }).finally(() => { inFlight = false; });
+    }, 5000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [page, items, busy, loading]);
   useEffect(() => { if (deleteOpen) deleteRef.current?.showModal(); }, [deleteOpen]);
   function navigate(next: Page) {
     setPage(next); setError(''); setNotice(''); setSelected(new Set());
@@ -167,9 +190,10 @@ export default function App({ accountName, onSignOut }: { accountName?: string; 
         {page === 'upload' && <UploadForm onChanged={load} onBusyChange={setBusy} />}
         {page === 'search' && <SearchForms busy={busy} search={search} />}
         {page === 'lost' && <LostPetForm busy={busy} search={search} />}
+        {page === 'chat' && <ChatPanel onView={item => { void view(item); }} onBusyChange={setBusy} />}
         {error && <div className="notice error" role="alert"><strong>We couldn’t complete that.</strong><p>{error}</p>{page === 'collection' && <button className="text-button" disabled={loading || busy} onClick={() => void load()}>Try loading again</button>}</div>}
         {notice && <div className="notice" role="status">{notice}</div>}
-        {page !== 'upload' && <section className="collection-section" aria-labelledby="collection-heading" aria-busy={loading || busy}>
+        {page !== 'upload' && page !== 'chat' && <section className="collection-section" aria-labelledby="collection-heading" aria-busy={loading || busy}>
           <div className="section-heading"><div><div className="eyebrow">{page === 'collection' ? 'COLLECTED MOMENTS' : 'SEARCH RESULTS'}</div><h2 id="collection-heading">{page === 'collection' ? 'Your sightings' : resultLabel || 'Matching sightings'}{hasResults && !loading && <span className="count-badge">{items.length}</span>}</h2></div>
             {page === 'collection' && <button className="button secondary" disabled={loading || busy} onClick={() => void load()}>{loading ? 'Loading…' : '↻ Refresh'}</button>}</div>
           {loading || busy && !hasResults ? <div className="empty-state" role="status"><span className="loading-ring" />{loading ? 'Loading your collection…' : 'Searching sightings…'}</div> : hasResults && items.length > 0 ? <>

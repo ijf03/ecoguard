@@ -142,3 +142,14 @@ dialog::backdrop { background: #172211b0; backdrop-filter: blur(3px); }
 .account-controls > span { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-controls button { font-size: 11px; }
 @media (max-width: 760px) { .auth-shell { display: block; } .auth-story { padding: 24px; min-height: 240px; } .auth-story .brand { margin-bottom: 25px; } .auth-story h1 { font-size: 38px; margin: 12px 0; } .auth-story p { display: none; } .auth-flower { position: absolute; right: 15px; top: 80px; font-size: 100px; opacity: .5; } .auth-main { padding: 35px 24px; } .auth-main h2 { font-size: 30px; } }
+.chat-log { display: grid; gap: 1rem; margin: 1.5rem 0; }
+.chat-message { border: 1px solid #dce0d0; border-radius: 12px; padding: 1rem; background: #f7f8f1; overflow-wrap: anywhere; }
+.chat-message.user { background: #edf1e4; margin-left: 2rem; }
+.chat-message p { margin: .5rem 0 0; line-height: 1.6; }
+.chat-results { display: grid; gap: .6rem; margin-top: 1rem; }
+.chat-result { display: flex; align-items: center; gap: 1rem; text-align: left; padding: .7rem; background: white; border: 1px solid #dce0d0; border-radius: 8px; width: 100%; cursor: pointer; color: inherit; }
+.chat-result img { width: 64px; height: 48px; object-fit: cover; border-radius: 4px; }
+.chat-result span { min-width: 0; }
+.chat-result strong { display: block; overflow-wrap: anywhere; }
+.chat-result small { display: block; margin-top: .3rem; }
+.chat-examples { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }

@@ -64,6 +64,7 @@ export function createMediaApi(send: ApiFetch = (path, options) => fetch(path, o
   }
   return {
     list: () => request<{ media: Media[] }>('/api/media'),
+    chat: (message: string, sessionId: string) => post<{ reply: string; media: Media[] }>('/api/chat', { message, sessionId }),
     process: (id: string) => post<{ media: Media }>(`/api/media/${encodeURIComponent(id)}/process`, {}),
     get: (id: string) => request<{ media: Media }>(`/api/media/${encodeURIComponent(id)}`),
     upload: async (file: File, visibility: 'private' | 'public' = 'private') => {

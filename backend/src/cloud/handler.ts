@@ -9,6 +9,7 @@ import { FirestoreMediaStore } from './firestore-media.js';
 import { S3MediaStorage } from './s3-media.js';
 import { SSMClient } from '@aws-sdk/client-ssm';
 import { CloudImageQueries } from './image-query.js';
+import { DialogflowChat } from './chat.js';
 
 const required = (name: string) => {
   const value = process.env[name];
@@ -22,8 +23,9 @@ const bucket = required('ECOGUARD_MEDIA_BUCKET');
 const db = new Firestore({ projectId, keyFilename: fileURLToPath(new URL('../../config/aws-wif.json', import.meta.url)) });
 const lambda = new LambdaClient({ region });
 const s3 = new S3Client({ region });
+const store = new FirestoreMediaStore(db);
 export const handler = createCloudApi({
-  store: new FirestoreMediaStore(db),
+  store, chat: new DialogflowChat(store),
   storage: new S3MediaStorage(s3, bucket),
   ...(process.env.ECOGUARD_INFERENCE_FUNCTION && process.env.ECOGUARD_PROCESSOR_FUNCTION ? { queries: new CloudImageQueries(s3, lambda, new SSMClient({ region }), bucket, process.env.ECOGUARD_PROCESSOR_FUNCTION, process.env.ECOGUARD_INFERENCE_FUNCTION) } : {}),
   auth: createCognitoAuth({ userPoolId: required('ECOGUARD_USER_POOL_ID'), clientId: required('ECOGUARD_CLIENT_ID'), frontendOrigin: required('ECOGUARD_FRONTEND_ORIGIN') }),
