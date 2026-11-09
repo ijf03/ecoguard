@@ -7,6 +7,8 @@ import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
 import { FirestoreMediaStore } from './firestore-media.js';
 import { S3MediaStorage } from './s3-media.js';
 import { createRecovery } from './recovery.js';
+import { SSMClient } from '@aws-sdk/client-ssm';
+import { CloudImageQueries } from './image-query.js';
 import type { S3Event, Context } from 'aws-lambda';
 import { createProcessor, type ValidatedImage, type ValidatedVideo } from './processor.js';
 const projectId = process.env.ECOGUARD_GCP_PROJECT;
@@ -20,6 +22,7 @@ const store = new FirestoreMediaStore(db);
 const storage = new S3MediaStorage(new S3Client({ region }), bucket);
 const inference = process.env.ECOGUARD_INFERENCE_FUNCTION;
 const modelSha = process.env.ECOGUARD_MODEL_SHA256;
+const queries = inference ? new CloudImageQueries(new S3Client({ region }), lambda, new SSMClient({ region }), bucket, process.env.AWS_LAMBDA_FUNCTION_NAME!, inference) : undefined;
 async function invokeModel(item: CloudMedia, mode: string, version: string) {
   if (!inference) throw new Error('Inference is not configured.');
   const response = await lambda.send(new InvokeCommand({ FunctionName: inference, InvocationType: 'RequestResponse', Payload: Buffer.from(JSON.stringify({ mode, key: item.storageKey, version, checksum: item.checksum, size: item.size, contentType: item.contentType })) }));
@@ -49,6 +52,8 @@ const recover = createRecovery({ store, storage, async enqueue(id) {
   await lambda.send(new InvokeCommand({ FunctionName: processEnvName(), InvocationType: 'Event', Payload: Buffer.from(JSON.stringify({ mediaId: id })) }));
 } });
 function processEnvName() { const name = globalThis.process.env.AWS_LAMBDA_FUNCTION_NAME; if (!name) throw new Error('Recovery requires a deployed worker.'); return name; }
-export async function handler(event: S3Event | { mediaId?: string; reconcile?: boolean }, _context: Context) {
-  return 'reconcile' in event && event.reconcile === true ? recover() : processMedia(event);
+export async function handler(event: S3Event | { mediaId?: string; reconcile?: boolean; queryToken?: string }, _context: Context) {
+  if ('queryToken' in event && typeof event.queryToken === 'string' && queries) return queries.run(event.queryToken);
+  if ('reconcile' in event && event.reconcile === true) { const result = await recover(); await queries?.cleanupExpired(); return result; }
+  return processMedia(event);
 }

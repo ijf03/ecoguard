@@ -25,11 +25,17 @@ test('API Gateway adapter verifies JWT itself, scopes uploads/collection, hides 
   const store = new FirestoreMediaStore(db, namespace);
   const signedUploads: string[] = [];
   const removed: string[] = [];
+  let queryLost = false;
+  let queryEmpty = false;
   const handle = createCloudApi({ store, auth, processingAvailable: false, schedule: async () => {}, storage: {
     upload: async item => { signedUploads.push(item.id); return { url: 'https://storage.test/upload', headers: { 'Content-Type': item.contentType, 'x-amz-checksum-sha256': Buffer.from(item.checksum, 'hex').toString('base64'), 'If-None-Match': '*' } }; },
     download: async item => item.sourceVersion ? `https://storage.test/download/${item.id}` : undefined,
     head: async () => ({ version: 'version-1', size: input.size, checksum: Buffer.from(input.checksum, 'hex').toString('base64'), contentType: input.contentType }),
     cleanup: async item => { removed.push(item.id); },
+  }, queries: {
+    reserve: async owner => ({ owner }), start: async () => {},
+    poll: async () => ({ detection: { species: queryEmpty ? {} : { cat: 3 }, model: { identity: 'query fixture', version: '1', weightsSha256: 'a'.repeat(64), confidence: 0.25 } },
+      ...(queryLost ? { window: { since: '2020-01-01T00:00:00.000Z', until: '2099-01-01T00:00:00.000Z', tags: [] } } : {}) }),
   } });
   const alice = await token('alice');
   const bob = await token('bob');
@@ -75,6 +81,12 @@ test('API Gateway adapter verifies JWT itself, scopes uploads/collection, hides 
   assert.deepEqual(tagged.body.media[0].manualTags, ['cat']);
   assert.equal((await call('/api/search', 'POST', { tags: { cat: 1 } }, alice)).body.media.length, 1);
   assert.equal((await call('/api/search/lost-pet', 'POST', { species: 'cat' }, alice)).body.media.length, 0);
+  assert.equal((await call('/api/queries', 'POST', {}, alice)).body.owner, 'alice');
+  assert.equal((await call('/api/queries/result', 'POST', { token: 'fixture-token' }, alice)).body.media.length, 1); // Three cats in the query still require only the cat species.
+  queryLost = true;
+  assert.equal((await call('/api/queries/result', 'POST', { token: 'fixture-token' }, alice)).body.media.length, 0); // Private media never enters lost-pet results.
+  queryLost = false; queryEmpty = true;
+  assert.equal((await call('/api/queries/result', 'POST', { token: 'fixture-token' }, alice)).body.media.length, 0);
   assert.equal((await call('/api/media/delete', 'POST', { urls: [urls[0]] }, alice)).body.deleted, 1);
   assert.deepEqual(removed, [id]);
   assert.equal((await call('/api/auth/session', 'DELETE')).status, 200);

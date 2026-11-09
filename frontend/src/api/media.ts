@@ -46,6 +46,22 @@ export function createMediaApi(send: ApiFetch = (path, options) => fetch(path, o
   const post = <T>(path: string, body: unknown) => request<T>(path, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
+  async function cloudImageQuery(file: File, purpose: 'collection' | 'lost-pet', options = {}) {
+    const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+    const checksum = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+    const query = await post<{ token: string; upload: { url: string; headers: Record<string, string> } }>('/api/queries', { purpose, options, file: { checksum, size: file.size, contentType: file.type } });
+    const target = new URL(query.upload.url);
+    if (target.protocol !== 'https:' || !target.hostname.endsWith('.s3.us-east-1.amazonaws.com')) throw new Error('Unexpected query storage endpoint.');
+    const uploaded = await fetch(target, { method: 'PUT', headers: query.upload.headers, body: file, credentials: 'omit', redirect: 'error' });
+    if (!uploaded.ok) throw new ApiError(uploaded.status, 'QUERY_UPLOAD_FAILED', 'Could not upload the temporary query image. Please retry.');
+    await post('/api/queries/start', { token: query.token });
+    for (let attempt = 0; attempt < 90; attempt++) {
+      const result = await post<{ pending?: true; media?: Media[] }>('/api/queries/result', { token: query.token });
+      if (!result.pending) return { media: result.media ?? [] };
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    throw new Error('This image search took too long. Please retry; the temporary image will be cleaned up automatically.');
+  }
   return {
     list: () => request<{ media: Media[] }>('/api/media'),
     process: (id: string) => post<{ media: Media }>(`/api/media/${encodeURIComponent(id)}/process`, {}),
@@ -69,12 +85,13 @@ export function createMediaApi(send: ApiFetch = (path, options) => fetch(path, o
       return { ...completed, duplicate: reserved.duplicate };
     },
     search: (tags: Record<string, number>) => post<{ media: Media[] }>('/api/search', { tags }),
-    searchImage: (file: File) => request<{ media: Media[] }>('/api/search/image', {
+    searchImage: (file: File) => cloudMode() ? cloudImageQuery(file, 'collection') : request<{ media: Media[] }>('/api/search/image', {
       method: 'POST', headers: { 'Content-Type': file.type }, body: file,
     }),
     lostPet: (species: string, tags: string[] = [], since?: string, until?: string) =>
       post<{ media: Media[] }>('/api/search/lost-pet', { species, tags, ...(since ? { since } : {}), ...(until ? { until } : {}) }),
     lostPetImage: (file: File, options: { tags?: string[]; since?: string; until?: string } = {}) => {
+      if (cloudMode()) return cloudImageQuery(file, 'lost-pet', options);
       const query = new URLSearchParams();
       for (const tag of options.tags ?? []) query.append('tag', tag);
       if (options.since) query.set('since', options.since);

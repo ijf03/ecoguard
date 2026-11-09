@@ -103,6 +103,15 @@
               "AbortIncompleteMultipartUpload": {
                 "DaysAfterInitiation": 1
               }
+            },
+            {
+              "Id": "ExpireTemporaryQueries",
+              "Status": "Enabled",
+              "Prefix": "queries/",
+              "ExpirationInDays": 1,
+              "NoncurrentVersionExpiration": {
+                "NoncurrentDays": 1
+              }
             }
           ]
         },
@@ -234,6 +243,9 @@
             },
             "ECOGUARD_PROCESSOR_FUNCTION": {
               "Ref": "ProcessorFunction"
+            },
+            "ECOGUARD_INFERENCE_FUNCTION": {
+              "Ref": "InferenceFunction"
             }
           }
         },

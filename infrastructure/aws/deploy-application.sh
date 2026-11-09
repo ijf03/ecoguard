@@ -8,6 +8,7 @@ archive="$root/backend/.build/ecoguard-runtime.zip"
 bucket="ecoguard-g80-deploy-$account-$region"
 aws_call() { "$aws_bin" --region="$region" "$@"; }
 if [[ $(aws_call sts get-caller-identity --query=Account --output=text) != "$account" ]]; then echo 'Wrong AWS account. Refusing deployment.' >&2; exit 1; fi
+python3 "$root/infrastructure/aws/setup-query-key.py" "$aws_bin"
 if [[ ! -f "$root/backend/.build/ecoguard-thumbnail.zip" ]]; then echo 'Package the Linux thumbnail runtime first.' >&2; exit 1; fi
 if [[ ! -f "$archive" ]]; then echo 'Package backend runtime first.' >&2; exit 1; fi
 mkdir -p "$root/backend/.build"
