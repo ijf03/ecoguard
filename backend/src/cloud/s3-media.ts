@@ -1,4 +1,4 @@
-import { DeleteObjectsCommand, GetObjectCommand, HeadObjectCommand, ListObjectVersionsCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, DeleteObjectsCommand, GetObjectCommand, HeadObjectCommand, ListObjectVersionsCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { CloudMedia } from './firestore-media.js';
 
@@ -9,7 +9,7 @@ export class S3MediaStorage {
     const command = new PutObjectCommand({ Bucket: this.bucket, Key: item.storageKey, ContentType: item.contentType,
       ContentLength: item.size, ChecksumSHA256: checksum, IfNoneMatch: '*' });
     return {
-      url: await getSignedUrl(this.client, command, { expiresIn: 300, unhoistableHeaders: new Set(['x-amz-checksum-sha256']), signableHeaders: new Set(['content-type', 'content-length', 'if-none-match']) }),
+      url: await getSignedUrl(this.client, command, { expiresIn: Math.min(300, Math.max(1, Math.floor((item.uploadExpiresAt - Date.now()) / 1000))), unhoistableHeaders: new Set(['x-amz-checksum-sha256']), signableHeaders: new Set(['content-type', 'content-length', 'if-none-match']) }),
       headers: { 'Content-Type': item.contentType, 'x-amz-checksum-sha256': checksum, 'If-None-Match': '*' },
     };
   }
@@ -26,8 +26,11 @@ export class S3MediaStorage {
     const result = await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: item.storageKey, ChecksumMode: 'ENABLED' }));
     return { version: result.VersionId, size: result.ContentLength, checksum: result.ChecksumSHA256, contentType: result.ContentType };
   }
+  async removeVersion(key: string, version: string) {
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key, VersionId: version }));
+  }
   /** Remove every version and delete marker; repeatable after partial failure. */
-  async cleanup(item: CloudMedia) {
+  async cleanup(item: Pick<CloudMedia, 'id' | 'storageKey'>) {
     // A source key can have malicious/presigned late writes. Tombstones persist; reconciliation repeats cleanup.
     for (const prefix of [item.storageKey, `thumbnails/${item.id}/`]) {
       let keyMarker: string | undefined;

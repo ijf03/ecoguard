@@ -62,6 +62,7 @@ try {
     await store.finishDelete(item.id);
     // Explicitly generated private fixtures only. Production deletion retains its tombstones.
     await db.collection('ecoguard_media').doc(item.id).delete();
+    await db.collection('ecoguard_tombstones').doc(item.id).delete();
     const events = await db.collection('ecoguard_outbox').where('mediaId', '==', item.id).get();
     for (const event of events.docs) await event.ref.delete();
     console.log('Removed this run\'s synthetic source/thumbnail versions and metadata fixtures.');

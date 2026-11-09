@@ -19,7 +19,7 @@ function setup(t: TestContext) {
   let now = Date.now();
   const store = new FirestoreMediaStore(db, namespace, () => now);
   t.after(async () => {
-    for (const name of ['media', 'checksums', 'outbox']) await db.recursiveDelete(db.collection(`${namespace}_${name}`));
+    for (const name of ['media', 'checksums', 'outbox', 'tombstones', 'control']) await db.recursiveDelete(db.collection(`${namespace}_${name}`));
     await db.terminate();
   });
   return { db, store, namespace, advance: (ms: number) => { now += ms; } };
