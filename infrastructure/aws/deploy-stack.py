@@ -5,7 +5,10 @@ import subprocess
 import sys
 
 aws, root, bucket, key, thumbnail_key, origin = sys.argv[1:]
-manifest = json.loads((Path(root) / 'backend/.build/inference-manifest.json').read_text())
+manifest_path = Path(root) / 'backend/.build/inference-manifest.json'
+if not manifest_path.exists():
+    manifest_path = Path(root) / 'infrastructure/aws/verified-inference-manifest.json'
+manifest = json.loads(manifest_path.read_text())
 if not all(manifest.get(flag) is True for flag in ('complete', 'inferencePackageComplete', 'nativeImportPreflight')) or not manifest.get('linuxPreflightFixtures'):
     raise SystemExit('A completed, verified inference manifest is required before deployment.')
 parameters = {'ArtifactBucket': bucket, 'ArtifactKey': key, 'ThumbnailArtifactKey': thumbnail_key,
