@@ -8,6 +8,12 @@ setCloudUploads(import.meta.env.VITE_CLOUD_UPLOADS === 'true');
 
 const sessions = createSessionCoordinator<string | undefined>();
 const storagePrefix = 'ecoguard.auth.';
+const apiOrigin = import.meta.env.VITE_API_ORIGIN as string | undefined;
+if (apiOrigin && !/^https:\/\/[a-z0-9]+\.execute-api\.us-east-1\.amazonaws\.com$/.test(apiOrigin)) throw new Error('Use the configured HTTPS EcoGuard API Gateway origin.');
+function apiUrl(path: string) {
+  if (!path.startsWith('/api/')) throw new Error('Expected an EcoGuard API path.');
+  return (apiOrigin ?? '') + path;
+}
 
 export const localDevelopment = import.meta.env.DEV && import.meta.env.VITE_LOCAL_DEV === 'true';
 const userPoolId = import.meta.env.VITE_COGNITO_USER_POOL_ID as string | undefined;
@@ -25,12 +31,12 @@ if (authConfigured && !localDevelopment) {
     },
   });
   setMediaTransport(async (path, options) => {
-    if (!path.startsWith('/api/')) throw new Error('Authenticated requests must use the same-origin EcoGuard API.');
+    if (!path.startsWith('/api/')) throw new Error('Authenticated requests must use the configured EcoGuard API.');
     const token = (await fetchAuthSession()).tokens?.accessToken?.toString();
     if (!token) throw new ApiError(401, 'UNAUTHENTICATED', 'Your session ended. Sign in again.');
     const headers = new Headers(options?.headers);
     headers.set('Authorization', `Bearer ${token}`);
-    const response = await fetch(path, { ...options, headers });
+    const response = await fetch(apiUrl(path), { ...options, headers, credentials: apiOrigin ? 'omit' : 'same-origin' });
     if (response.status === 401) window.dispatchEvent(new Event('ecoguard:session-expired'));
     return response;
   });
@@ -45,14 +51,14 @@ async function refreshBackendSession() {
   const token = session.tokens?.accessToken?.toString();
   if (!token) return undefined;
   // HttpOnly same-origin session authorizes native image/video requests as well as fetch.
-  const response = await fetch('/api/auth/session', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) });
+  const response = await fetch(apiUrl('/api/auth/session'), { method: 'POST', headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) });
   if (!response.ok) throw new Error('We could not open a secure application session. Please try again.');
   const name = session.tokens?.idToken?.payload.given_name;
   return typeof name === 'string' && name ? name : 'EcoGuard member';
 }
 export async function endAuthenticatedSession() {
   await sessions.end(async () => {
-    const response = await fetch('/api/auth/session', { method: 'DELETE', signal: AbortSignal.timeout(15000) });
+    const response = await fetch(apiUrl('/api/auth/session'), { method: 'DELETE', signal: AbortSignal.timeout(15000) });
     if (!response.ok) throw new Error('Could not clear the application session. Please retry signing out.');
     await signOut();
   });
