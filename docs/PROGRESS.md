@@ -1,3 +1,5 @@
+> 9 November 2026: actual S3-triggered image AND video model pipelines passed live Lambda/Firestore checks, including original/range retrieval, deduplication, count search and owner isolation. See CLOUD_MODEL_VERIFICATION.md. Recovery is deployed on a five-minute schedule. Frontend hosting, complete browser workflows, image queries, chatbot and email remain open.
+
 > Image stage: actual S3-triggered Linux/Pillow thumbnail generation and corrupt-image rejection passed; ten cloud/emulator tests pass. Real model/video/query integration and scheduled recovery remain open. See CLOUD_IMAGE_VERIFICATION.md.
 
 > Deployed stage update: API Gateway/Lambda, private versioned S3, keyless AWS-to-GCP federation and Firestore metadata access are verified. Nine cloud/emulator tests and live storage/federation checks pass; cloud processing/bot/notifications are not complete. See CLOUD_API_VERIFICATION.md.

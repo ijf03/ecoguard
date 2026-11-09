@@ -1,6 +1,6 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "EcoGuard authenticated API and private versioned media storage. Processing/bot/email integrations are separate stages.",
+  "Description": "EcoGuard protected serverless API, versioned private media, image/video inference, thumbnails, and bounded recovery.",
   "Parameters": {
     "ArtifactBucket": {
       "Type": "String"
@@ -13,6 +13,25 @@
       "Default": "http://127.0.0.1:5173"
     },
     "ThumbnailArtifactKey": {
+      "Type": "String"
+    },
+    "InferenceArtifactKey": {
+      "Type": "String"
+    },
+    "ModelKey": {
+      "Type": "String"
+    },
+    "ModelVersion": {
+      "Type": "String"
+    },
+    "ModelSha256": {
+      "Type": "String",
+      "AllowedPattern": "[a-f0-9]{64}"
+    },
+    "ModelIdentity": {
+      "Type": "String"
+    },
+    "ModelExporterVersion": {
       "Type": "String"
     }
   },
@@ -113,6 +132,25 @@
                   ]
                 }
               }
+            },
+            {
+              "Event": "s3:ObjectCreated:*",
+              "Function": {
+                "Fn::GetAtt": [
+                  "ProcessorFunction",
+                  "Arn"
+                ]
+              },
+              "Filter": {
+                "S3Key": {
+                  "Rules": [
+                    {
+                      "Name": "prefix",
+                      "Value": "thumbnails/"
+                    }
+                  ]
+                }
+              }
             }
           ]
         }
@@ -204,7 +242,8 @@
             "Key": "Project",
             "Value": "AussieEcoGuardG80"
           }
-        ]
+        ],
+        "ReservedConcurrentExecutions": 3
       }
     },
     "HttpApi": {
@@ -410,7 +449,8 @@
             "Key": "Project",
             "Value": "AussieEcoGuardG80"
           }
-        ]
+        ],
+        "ReservedConcurrentExecutions": 2
       }
     },
     "ProcessorFunction": {
@@ -424,7 +464,7 @@
           "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/LabRole"
         },
         "MemorySize": 512,
-        "Timeout": 180,
+        "Timeout": 900,
         "Code": {
           "S3Bucket": {
             "Ref": "ArtifactBucket"
@@ -441,6 +481,12 @@
             },
             "ECOGUARD_IMAGE_VALIDATOR_FUNCTION": {
               "Ref": "ThumbnailFunction"
+            },
+            "ECOGUARD_INFERENCE_FUNCTION": {
+              "Ref": "InferenceFunction"
+            },
+            "ECOGUARD_MODEL_SHA256": {
+              "Ref": "ModelSha256"
             }
           }
         },
@@ -449,7 +495,8 @@
             "Key": "Project",
             "Value": "AussieEcoGuardG80"
           }
-        ]
+        ],
+        "ReservedConcurrentExecutions": 2
       }
     },
     "ProcessorInvokePermission": {
@@ -500,6 +547,107 @@
               ]
             }
           }
+        }
+      }
+    },
+    "InferenceLogs": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/ecoguard-g80-inference",
+        "RetentionInDays": 14
+      }
+    },
+    "InferenceFunction": {
+      "Type": "AWS::Lambda::Function",
+      "DependsOn": "InferenceLogs",
+      "Properties": {
+        "FunctionName": "ecoguard-g80-inference",
+        "Runtime": "python3.12",
+        "Architectures": [
+          "x86_64"
+        ],
+        "Handler": "cloud_inference.handler",
+        "Role": {
+          "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+        },
+        "MemorySize": 2048,
+        "Timeout": 780,
+        "ReservedConcurrentExecutions": 2,
+        "Code": {
+          "S3Bucket": {
+            "Ref": "ArtifactBucket"
+          },
+          "S3Key": {
+            "Ref": "InferenceArtifactKey"
+          }
+        },
+        "Environment": {
+          "Variables": {
+            "ECOGUARD_MEDIA_BUCKET": {
+              "Fn::Sub": "ecoguard-g80-media-${AWS::AccountId}-${AWS::Region}"
+            },
+            "ECOGUARD_MODEL_BUCKET": {
+              "Fn::Sub": "ecoguard-g80-media-${AWS::AccountId}-${AWS::Region}"
+            },
+            "ECOGUARD_MODEL_KEY": {
+              "Ref": "ModelKey"
+            },
+            "ECOGUARD_MODEL_VERSION": {
+              "Ref": "ModelVersion"
+            },
+            "ECOGUARD_MODEL_SHA256": {
+              "Ref": "ModelSha256"
+            },
+            "ECOGUARD_MODEL_IDENTITY": {
+              "Ref": "ModelIdentity"
+            },
+            "ECOGUARD_MODEL_EXPORTER_VERSION": {
+              "Ref": "ModelExporterVersion"
+            },
+            "ECOGUARD_CONFIDENCE": "0.25"
+          }
+        },
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "AussieEcoGuardG80"
+          }
+        ]
+      }
+    },
+    "RecoverySchedule": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "Name": "ecoguard-g80-recovery",
+        "ScheduleExpression": "rate(5 minutes)",
+        "State": "ENABLED",
+        "Targets": [
+          {
+            "Id": "RecoverMedia",
+            "Arn": {
+              "Fn::GetAtt": [
+                "ProcessorFunction",
+                "Arn"
+              ]
+            },
+            "Input": "{\"reconcile\":true}"
+          }
+        ]
+      }
+    },
+    "RecoveryPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "ProcessorFunction"
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "RecoverySchedule",
+            "Arn"
+          ]
         }
       }
     }

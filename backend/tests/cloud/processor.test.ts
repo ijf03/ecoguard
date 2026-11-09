@@ -10,15 +10,17 @@ if (!/^127\.0\.0\.1:\d+$/.test(process.env.FIRESTORE_EMULATOR_HOST ?? '')) throw
 test('mock validation orchestration: thumbnail publication, honest missing-model failure, invalid rejection and deletion fencing', async t => {
   const db = new Firestore({ projectId: 'demo-ecoguard-g80' });
   const namespace = `worker_${randomUUID().replaceAll('-', '')}`;
-  t.after(async () => { for (const name of ['media', 'checksums', 'outbox']) await db.recursiveDelete(db.collection(`${namespace}_${name}`)); await db.terminate(); });
+  t.after(async () => { for (const name of ['media', 'checksums', 'outbox', 'tombstones', 'control']) await db.recursiveDelete(db.collection(`${namespace}_${name}`)); await db.terminate(); });
   const store = new FirestoreMediaStore(db, namespace);
   const cleanup: string[] = [];
+  const orphanVersions: string[] = [];
   let validates = 0;
   let invalid = false;
   let deleteDuringValidation = false;
   const worker = createProcessor({ store, storage: { bucket: 'test-bucket',
     head: async item => ({ version: 'fixture-v1', size: item.size, checksum: item.checksum, contentType: item.contentType }),
     cleanup: async item => { cleanup.push(item.id); },
+    removeVersion: async (key, version) => { orphanVersions.push(key + ':' + version); },
   }, async validate(item): Promise<ValidatedImage> {
     validates++;
     if (invalid) return { valid: false, error: 'INVALID_MEDIA' };
@@ -69,4 +71,8 @@ test('mock validation orchestration: thumbnail publication, honest missing-model
 
   const foreignEvent = { Records: [{ eventSource: 'aws:s3', eventName: 'ObjectCreated:Put', s3: { bucket: { name: 'foreign-bucket' }, object: { key: video.storageKey, versionId: 'foreign-v1' } } }] } as unknown as S3Event;
   assert.equal((await worker(foreignEvent)).accepted, 0);
+  const orphanId = randomUUID();
+  const orphan = { Records: [{ eventSource: 'aws:s3', eventName: 'ObjectCreated:Put', s3: { bucket: { name: 'test-bucket' }, object: { key: `thumbnails/${orphanId}/fixture/preview.jpg`, versionId: 'late-version' } } }] } as unknown as S3Event;
+  await worker(orphan);
+  assert.deepEqual(orphanVersions, [`thumbnails/${orphanId}/fixture/preview.jpg:late-version`]);
 });

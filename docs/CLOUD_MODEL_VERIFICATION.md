@@ -1,0 +1,13 @@
+# Deployed image and video processing — 9 November 2026
+
+The real S3-triggered processing pipeline passed controlled live checks in AWS account 851725503164 / us-east-1 and GCP project fit3184-g80-ecoguard-dg26. The upload event invokes the Node orchestrator, a separate Python thumbnail function for images, and a separate CPU inference function. Metadata is committed to Firestore using keyless AWS workload federation.
+
+Runtime: Python 3.12, Amazon Linux 2023 x86_64, ONNX Runtime 1.31.1, YOLO11n exported with Ultralytics 8.4.207; FFmpeg 8.1.3 built from the official source release. Model SHA-256: `adc8dce767b7d7dec28cf12dd5bd9cafbe080590827802510e1890bcf2185e70`. Weights are private, version-pinned S3 objects and their digest is checked before loading. The native package is 167,459,950 bytes extracted. Build tasks exit after completion and have a 14-minute hard deadline.
+
+The official PyTorch Hub dog image returned one dog both in Linux preflight and in deployed Lambda. A controlled 11-second H.264 MP4 made from that image sampled frames at 0 and 10 seconds. It returned maximum counts of one dog and one cat; the cat is an observed false positive. Counts are never summed across frames and do not represent unique animals. This synthetic fixture verifies processing mechanics, not moving-wildlife accuracy.
+
+The live pipeline also verified owner isolation, same-owner SHA-256 deduplication, AND/minimum-count search, byte-for-byte original retrieval, compressed aspect-preserving image thumbnails, and video HTTP Range 206 responses. Generated media, all source/thumbnail versions, metadata, checksum reservations and outbox events are removed after the test. Controlled source fixtures and model assets remain private for reproducible verification.
+
+Reproduce after deployment with `ECOGUARD_ALLOW_LIVE_TESTS=1 node scripts/test-model-pipeline-live.mjs` from backend, with AWS credentials configured and the named EcoGuard gcloud account signed in. This script deliberately creates and removes only its own uniquely identified test records. The regular local suite has 29 passes and three external-runtime skips; the separate Firestore-emulator suite has 11 passes. Live tests are additional evidence, not replacements for browser workflow verification.
+
+Known limits: this model supports ten broad animal classes; breeds, colours, foxes and cane toads need manual tags. Model weights/version/SHA are deployment parameters. The learner lab requires the broad pre-existing LabRole; production should use separate least-privilege roles. Real browser video playback, temporary image queries, chatbot and email notifications still need their own verification.
